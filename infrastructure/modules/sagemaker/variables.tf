@@ -35,3 +35,15 @@ variable "security_group_ids" {
   description = "Security groups attached to Studio apps inside the VPC"
   type        = list(string)
 }
+
+variable "user_profile_name" {
+  description = "Name of the Studio user profile created in the Domain"
+  type        = string
+  default     = "MLEngineer"
+}
+
+variable "app_network_access_type" {
+  description = "How Studio apps reach the network: PublicInternetOnly (SageMaker-managed egress) or VpcOnly (egress via the VPC, which requires a NAT Gateway in Lab 2)"
+  type        = string
+  default     = "PublicInternetOnly"
+}
