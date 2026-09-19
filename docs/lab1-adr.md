@@ -64,7 +64,7 @@ having.
   against existing prefixes, not a data migration.
 - The 24-month retention rule is configured in one place rather than kept
   consistent across four buckets.
-- The /16 leaves 65,280 addresses unused after the public subnet, so Lab 2's
+- The /16 leaves 65,280 addresses free after the public subnet, so Lab 2's
   private subnets need no re-addressing.
 
 #### What this makes harder
@@ -85,8 +85,8 @@ having.
 
 - The service agent moving to production against its 99.5% target, forcing
   multi-AZ.
-- Real customer PII landing in `raw/`, which would justify a KMS customer
-  managed key in place of SSE-S3.
+- Real customer PII landing in `raw/`, justifying a KMS customer managed key
+  instead of SSE-S3.
 - Role count growing past a handful, where per-role policies become harder to
   audit than permission boundaries.
 - Platform cost reaching a material fraction of the $85,000/month budget, making
@@ -117,7 +117,7 @@ permission model covers both.
   SageMaker reads training data from S3 natively and the prefixes give the
   per-role access boundary that the 24-month retention and GDPR obligations
   require.
-- **Identity model** - IAM roles assumed by services rather than long-lived user
+- **Identity model** - IAM roles assumed by services rather than long-lived
   keys, because three AI systems sharing one data store need access scoped per
   stage, and a role that cannot write to `raw/` cannot corrupt the inputs the
   churn model is measured on.
