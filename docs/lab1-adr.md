@@ -6,23 +6,16 @@ Accepted
 
 ### Context
 
-NorthStar is building a platform for three AI systems, not just one model:
-churn scoring, an LLM offer generator, and a customer service agent. They all
-share the same data and the same infrastructure.
-
-The reason is churn. NorthStar loses about 18% of its customers a year, which
-works out to a $128.5M problem. That is big enough that the platform can't be
-thrown together now and fixed later.
+NorthStar is building a platform for three AI systems, not just one model. Each of the systems
+shares the same data and the same infrastructure. NorthStar loses about 18% of its customers a year, which makes it a big enough issue to build out infrastructure right now.
 
 We need the identity model from day one because of security. Three systems and
 several roles will end up touching the same data. If everyone starts with full
-access you can't take it away later without breaking things that already work.
+access you can't take it away later without it breaking.
 
 The storage tiers have to exist from day one for the same reason. Raw customer
 data is under GDPR and a 24-month retention rule and model artifacts are not. If
-they all sit in one bucket with no structure, there is nothing for permissions
-to attach to.
-
+they all sit in one bucket with no structure, there is a problem.
 ### Decision
 
 **VPC.** One VPC at 10.0.0.0/16, one public subnet at 10.0.100.0/24 in
@@ -33,7 +26,7 @@ One AZ is fine for development, but it will not hold up for the customer service
 agent, which has a 99.5% uptime requirement.
 
 **S3.** One bucket with four prefixes: `raw/`, `processed/`, `features/`,
-`artifacts/`. One bucket means one place to apply the 24-month retention rule.
+`artifacts/`. One bucket means we don't have to configure four separate buckets with the same retention rule.
 The prefixes are what access control attaches to, and that is what lets Lab 2
 give `raw/`, `processed/` and `features/` to a DataEngineer role while the ML
 role keeps `artifacts/`. Versioning is on so that a bad transform does not
@@ -42,43 +35,27 @@ destroy the version underneath it.
 **IAM.** One role, `northstar-dev-MLEngineer`, trusted by SageMaker. It can read
 and write `artifacts/` and `features/` and nothing else. It cannot touch `raw/`
 or `processed/`, because ingesting and cleaning data is data engineering work
-and the ML role is not related to data engineering. Separation of roles. It also
-has no permissions over networking or over its own policies. `ListBucket` is in
-its own statement, separate from the object actions. If you put the bucket
-wildcard in the object statement it also matches `raw/*`, and you would silently
-grant the exact write access this role is supposed to not have.
+and the ML role is not related to data engineering. Separation of roles.
 
 ### Consequences
 
 #### What this makes easy
 
-- The whole environment rebuilds from one command. 19 resources, applied clean
-  and destroyed in 54 seconds.
-- Adding the DataEngineer and ModelMonitor roles in Lab 2 is just a policy
-  change, because the prefixes already exist. No data migration.
-- Retention is configured in one place instead of four.
-- There is plenty of address space left over for the private subnets in Lab 2.
+- The whole environment rebuilds from one terraform. 19 resources very quickly.
+- IAM roles are scoped from the start. No rescinding privileges.
+- One VPC and AZ, which keeps things light for dev work.
 
 #### What this makes harder
 
-- Everything is in one AZ. A 99.5% target gives the service agent about 3.6
-  hours of downtime a month, and one AZ outage burns through that in a single
-  event. This topology cannot run that system in production.
-- Studio sits in a public subnet with open egress. Nothing can get in, but a
-  compromised notebook could send data out to anywhere, and this platform will
-  hold PII for millions of customers.
-- The IAM model depends entirely on the ARN patterns. Widen one wildcard and
-  `raw/` is writable again, with no error to tell you it happened.
-- SSE-S3 gives no per-key audit trail and no way to revoke by key. The privacy
-  officer will ask about that once real customer data lands.
+- Need a future implementation for production environment. ie multiple AZ's and redundancies in place to hit our target 99.5% availability.
+- Studio sits in a public subnet that can send data anywhere if compromised.
+- SSE-S3 gives no per-key audit trail and no way to revoke by key.
 
 #### What would cause you to revisit this decision
 
-- The service agent going to production against its uptime target. That forces
-  multi-AZ.
-- Real customer PII landing in `raw/`. That justifies KMS instead of SSE-S3.
+- Our model going to production, which needs multiple Availability zones.
 - More roles than we can reasonably audit as individual policies.
-- Cost becoming a real share of the $85,000/month platform budget.
+- Costs ballooning past $85,000 a month, which would need us to scale down.
 
 ### Alternative Considered
 
