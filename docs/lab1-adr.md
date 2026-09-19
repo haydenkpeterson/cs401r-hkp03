@@ -1,4 +1,4 @@
-# ADR-001: NorthStar Platform Foundation
+## ADR-001: NorthStar Platform Foundation
 
 > ⚠️ **SCAFFOLD — DELETE EVERY BLOCKQUOTE BEFORE SUBMITTING.**
 > Every `>` block in this file is a prompt for you, not content. The reference
@@ -6,13 +6,12 @@
 > prose. Ask me to strip the scaffolding once you've filled it in and I'll
 > leave only your writing.
 
-## Status
+### Status
 
 Accepted
 
----
 
-## Context
+### Context
 
 > **Write ~150 words.** Set up the problem before any solution appears.
 >
@@ -29,9 +28,8 @@ Accepted
 > Do not describe your solution here. Context is the situation any reasonable
 > engineer would face; the Decision section is where your choices go.
 
----
 
-## Decision
+### Decision
 
 > **Write ~250 words.** This is the heart of the ADR and carries 4 rubric
 > points for referencing NorthStar-specific requirements. A rationale that
@@ -63,11 +61,10 @@ Accepted
 > - Why are `ListBucket` and the object actions in separate statements? (The
 >   trailing-wildcard trap is a real, specific failure — explain it.)
 
----
 
-## Consequences
+### Consequences
 
-### What this makes easy
+#### What this makes easy
 
 > **Write ~100 words, 3–4 bullets.** Rubric demands each consequence cite a
 > number, name a constraint, or identify a failure mode. "It's simpler" earns
@@ -81,7 +78,7 @@ Accepted
 > - Address space headroom.
 > - Whole environment rebuilds from one command — you measured this.
 
-### What this makes harder
+#### What this makes harder
 
 > **Write ~120 words, 3–4 bullets.** Be genuinely critical here. A section
 > that finds no real downsides reads as not having thought about it.
@@ -96,7 +93,7 @@ Accepted
 > - SSE-S3 rather than a KMS CMK. What can't you do that a regulator might ask
 >   for? Who at NorthStar asks?
 
-### What would cause you to revisit this decision
+#### What would cause you to revisit this decision
 
 > **Write ~100 words, 3–4 bullets.** Each should name a *trigger* — a
 > threshold, event, or date — not a vague "if things change."
@@ -106,9 +103,8 @@ Accepted
 > policies handle cleanly; request rates against a single prefix; cost crossing
 > some fraction of the monthly budget.
 
----
 
-## Alternative Considered
+### Alternative Considered
 
 > **Write ~120 words.** 2 rubric points. It must be an approach that could
 > plausibly have worked — if the rejection reason is obvious, it's a strawman
@@ -127,9 +123,8 @@ Accepted
 > State what you rejected, why it could have worked, and the specific reason
 > you didn't choose it.
 
----
 
-## AWS Service Selection
+### AWS Service Selection
 
 > **One sentence each, with the deciding reason.** 2 points, and the rubric
 > checks all four are present. "It's the standard choice" is not a reason.
@@ -138,8 +133,6 @@ Accepted
 - **Storage design** —
 - **Identity model** —
 - **ML development environment** —
-
----
 
 ---
 
