@@ -6,7 +6,7 @@ Accepted
 
 ### Context
 
-NorthStar is building a platform for three AI systems, not just one model. Each of the systems
+NorthStar is building a platform for three AI systems (churn prediction, offer generation, customer service agent) not just one model. Each of the systems
 shares the same data and the same infrastructure. NorthStar loses about 18% of its customers a year, which makes it a big enough issue to build out infrastructure right now.
 
 We need the identity model from day one because of security. Three systems and
@@ -16,6 +16,9 @@ access you can't take it away later without it breaking.
 The storage tiers have to exist from day one for the same reason. Raw customer
 data is under GDPR and a 24-month retention rule and model artifacts are not. If
 they all sit in one bucket with no structure, there is a problem.
+
+We need to build the underlying infrastructure to be able to support those 3 systems. That means building an MVP that scopes out to all three.
+
 ### Decision
 
 **VPC.** One VPC at 10.0.0.0/16, one public subnet at 10.0.100.0/24 in
@@ -41,13 +44,14 @@ and the ML role is not related to data engineering. Separation of roles.
 
 #### What this makes easy
 
-- The whole environment rebuilds from one terraform. 19 resources very quickly.
+- The whole environment rebuilds from one terraform. 19 resources, and it tears
+  down in 54 seconds.
 - IAM roles are scoped from the start. No rescinding privileges.
 - One VPC and AZ, which keeps things light for dev work.
 
 #### What this makes harder
 
-- Need a future implementation for production environment. ie multiple AZ's and redundancies in place to hit our target 99.5% availability.
+- Need a future implementation for production environment. ie multiple AZs and redundancies in place to hit our target 99.5% availability.
 - Studio sits in a public subnet that can send data anywhere if compromised.
 - SSE-S3 gives no per-key audit trail and no way to revoke by key.
 
@@ -55,7 +59,8 @@ and the ML role is not related to data engineering. Separation of roles.
 
 - Our model going to production, which needs multiple Availability zones.
 - More roles than we can reasonably audit as individual policies.
-- Costs ballooning past $85,000 a month, which would need us to scale down.
+- Costs becoming a real share of the $85,000 a month platform budget, which
+  would make us re-examine the single-account design.
 
 ### Alternative Considered
 
