@@ -1,180 +1,127 @@
 ## ADR-001: NorthStar Platform Foundation
 
-> ⚠️ **SCAFFOLD — DELETE EVERY BLOCKQUOTE BEFORE SUBMITTING.**
-> Every `>` block in this file is a prompt for you, not content. The reference
-> tables at the bottom go too. Target length is 700–1000 words of your own
-> prose. Ask me to strip the scaffolding once you've filled it in and I'll
-> leave only your writing.
-
 ### Status
 
 Accepted
 
-
 ### Context
 
-> **Write ~150 words.** Set up the problem before any solution appears.
->
-> Answer these:
-> 1. What is NorthStar building, and what business problem drives it? (The
->    churn number and where it comes from.)
-> 2. Why does a platform shared by *three different* AI systems need an
->    identity model on day one, rather than added later once things work?
-> 3. Why does the storage tier structure have to exist before any data lands
->    in it? Think about what happens if raw PII and model artifacts share one
->    undifferentiated bucket and you later need per-role access.
-> 4. What constraints are fixed from the outset? (Budget, regulation, latency.)
->
-> Do not describe your solution here. Context is the situation any reasonable
-> engineer would face; the Decision section is where your choices go.
+NorthStar is not building one model, it is building a platform that three AI
+systems share: weekly churn scoring, an LLM/RAG offer generator, and a customer
+service agent. The business case is churn: NorthStar loses about 18% of its 2.1M
+active customers a year at roughly $340 of lifetime value each, a $128.5M annual
+problem. That number sets the scope. A platform carrying that much value is not
+a prototype, so the pieces that are painful to retrofit belong in place from the
+start.
 
+Identity is the first. Three systems and several roles will read and write the
+same data, and if all of them start with broad access there is no way to narrow
+it later without breaking what already works. Storage structure is the second.
+Raw customer records fall under GDPR, CCPA and a 24-month retention rule while
+model artifacts do not, so the two cannot share one undifferentiated bucket if
+different people are to have different access. Both are cheaper to satisfy now
+than to migrate into later.
 
 ### Decision
 
-> **Write ~250 words.** This is the heart of the ADR and carries 4 rubric
-> points for referencing NorthStar-specific requirements. A rationale that
-> would read identically for any company scores zero here — every "because"
-> must trace to something in the NorthStar case.
->
-> Cover three things, and justify each:
->
-> **VPC topology** — one VPC at 10.0.0.0/16, a single public subnet at
-> 10.0.100.0/24 in us-east-1a, IGW, and a security group admitting only
-> intra-VPC traffic.
-> - Why does Studio need outbound internet at all?
-> - Why is inbound restricted to the VPC CIDR when the subnet is public?
-> - Why is a single AZ acceptable *for Lab 1* but not for the finished
->   platform? Name which of the three systems breaks first and why.
->
-> **S3 prefix design** — one bucket, four prefixes (`raw/`, `processed/`,
-> `features/`, `artifacts/`).
-> - Why one bucket with prefixes instead of four buckets?
-> - What does the stage split buy you that a flat bucket does not? Tie this to
->   who is allowed to touch which stage.
-> - Why is versioning on, in terms of a specific failure you can name?
->
-> **IAM role model** — one role today (`northstar-dev-MLEngineer`), trusted by
-> `sagemaker.amazonaws.com`, with object access scoped to `artifacts/` and
-> `features/` only.
-> - What is this role deliberately *unable* to do, and why does that matter
->   given who else will use this platform?
-> - Why are `ListBucket` and the object actions in separate statements? (The
->   trailing-wildcard trap is a real, specific failure — explain it.)
+**VPC topology.** One VPC at 10.0.0.0/16 with a single public subnet at
+10.0.100.0/24 in us-east-1a, an Internet Gateway, and a route for 0.0.0.0/0.
+Studio needs outbound internet to pull container images and reach S3 and the
+NorthStar source data, so the subnet has a path out. Inbound is restricted to the
+VPC CIDR, so nothing outside our own AWS network can open a connection to Studio
+even though the subnet is public. A single AZ is fine for a development
+foundation but could not carry the service agent's 99.5% availability
+requirement.
 
+**S3 prefix design.** One bucket with four prefixes - `raw/`, `processed/`,
+`features/`, `artifacts/` - not four separate buckets. One bucket keeps the
+24-month retention rule in a single place, and the prefixes are the boundary
+access control attaches to: the stage split is what lets Lab 2 hand `raw/`,
+`processed/` and `features/` to a DataEngineer role while the ML role keeps
+`artifacts/`. Versioning is on so a bad transform overwriting a processed dataset
+leaves the prior version recoverable.
+
+**IAM role model.** One role today, `northstar-dev-MLEngineer`, trusted by
+`sagemaker.amazonaws.com`, with object access scoped to `artifacts/` and
+`features/` only. It cannot write to `raw/` or `processed/`, and it holds no
+permissions over networking or its own policies. This is separation of roles:
+ingesting and cleaning source data is data engineering work, not machine
+learning work, so the ML role has no business touching those stages and should
+not be able to alter the inputs its own model is evaluated against. `ListBucket`
+is granted on the bucket ARN in a separate statement from the object actions,
+because a trailing wildcard on the bucket in the object statement would also
+match `raw/*` and silently grant the write access the role is defined by not
+having.
 
 ### Consequences
 
 #### What this makes easy
 
-> **Write ~100 words, 3–4 bullets.** Rubric demands each consequence cite a
-> number, name a constraint, or identify a failure mode. "It's simpler" earns
-> nothing; "the /16 leaves 65,280 addresses free for Lab 2's private subnets"
-> earns the point.
->
-> Candidates — pick the strongest and make them concrete:
-> - Adding the DataEngineer and ModelMonitor roles in Lab 2 is a policy change
->   against prefixes that already exist. What does that avoid?
-> - One bucket means one place to apply the 24-month retention rule.
-> - Address space headroom.
-> - Whole environment rebuilds from one command — you measured this.
+- The environment rebuilds from one command: 19 resources applied cleanly and
+  destroyed in 54 seconds, so testing a change costs minutes, not a console
+  rebuild.
+- Adding the DataEngineer and ModelMonitor roles in Lab 2 is a policy change
+  against existing prefixes, not a data migration.
+- The 24-month retention rule is configured in one place rather than kept
+  consistent across four buckets.
+- The /16 leaves 65,280 addresses unused after the public subnet, so Lab 2's
+  private subnets need no re-addressing.
 
 #### What this makes harder
 
-> **Write ~120 words, 3–4 bullets.** Be genuinely critical here. A section
-> that finds no real downsides reads as not having thought about it.
->
-> Candidates:
-> - Single AZ, single subnet. Which system's availability target does this
->   make unmeetable, and by how much?
-> - Studio in a public subnet with unrestricted egress. What is the actual
->   exposure, given what data this platform will hold?
-> - Prefix-scoped IAM is only as good as the ARN patterns. What breaks silently
->   if someone widens one?
-> - SSE-S3 rather than a KMS CMK. What can't you do that a regulator might ask
->   for? Who at NorthStar asks?
+- Everything sits in us-east-1a. The service agent's 99.5% target allows roughly
+  3.6 hours of downtime a month, and one AZ outage would exceed that in a single
+  event, so this topology cannot carry that system to production.
+- Studio runs in a public subnet with unrestricted egress. Inbound is closed,
+  but a compromised notebook could send data to any host on the internet, and
+  this platform will hold PII for 2.1M customers.
+- Prefix-scoped IAM is only as strong as its ARN patterns: widening one wildcard
+  re-grants `raw/` access with no error and no obvious symptom.
+- SSE-S3 encrypts at rest but gives no per-key audit trail and no key-level
+  revocation, which the Chief Privacy Officer will ask about once real customer
+  data lands.
 
 #### What would cause you to revisit this decision
 
-> **Write ~100 words, 3–4 bullets.** Each should name a *trigger* — a
-> threshold, event, or date — not a vague "if things change."
->
-> Candidates: the agent going to production against its availability target;
-> real customer PII landing in `raw/`; role count growing past what per-role
-> policies handle cleanly; request rates against a single prefix; cost crossing
-> some fraction of the monthly budget.
-
+- The service agent moving to production against its 99.5% target, forcing
+  multi-AZ.
+- Real customer PII landing in `raw/`, which would justify a KMS customer
+  managed key in place of SSE-S3.
+- Role count growing past a handful, where per-role policies become harder to
+  audit than permission boundaries.
+- Platform cost reaching a material fraction of the $85,000/month budget, making
+  the single-account, single-region design worth re-examining.
 
 ### Alternative Considered
 
-> **Write ~120 words.** 2 rubric points. It must be an approach that could
-> plausibly have worked — if the rejection reason is obvious, it's a strawman
-> and scores poorly.
->
-> Pick ONE and argue it honestly:
-> - **One AWS account per AI system**, isolated via AWS Organizations. Strong
->   candidate: real isolation, real blast-radius reduction, genuinely used in
->   industry. The rejection hinges on the churn model and the offer generator
->   needing the *same* customer features — say what duplicating that pipeline
->   would cost you in consistency and audit surface.
-> - **A bucket per data stage** instead of prefixes.
-> - **Private subnet + NAT Gateway from day one** (what Lab 2 does). Rejection
->   is partly cost — you have the NAT number in your cost estimate.
->
-> State what you rejected, why it could have worked, and the specific reason
-> you didn't choose it.
+We considered keeping engineered features in NorthStar's existing Snowflake
+warehouse instead of S3 prefixes. This is a real option, not a hypothetical one:
+Snowflake is already in production, already fed by nightly ETL, and the data team
+already knows how to query it, so feature engineering could have happened where
+the data lives and skipped a storage tier entirely.
 
+We rejected it because SageMaker reads training data from S3 natively, so every
+run would export from Snowflake first, paying egress and adding a step that can
+drift out of sync with the warehouse. Model artifacts are binary objects that do
+not belong in a relational warehouse, so we would need S3 anyway and would
+maintain two storage systems with two access models. One bucket means one
+permission model covers both.
 
 ### AWS Service Selection
 
-> **One sentence each, with the deciding reason.** 2 points, and the rubric
-> checks all four are present. "It's the standard choice" is not a reason.
-
-- **Networking isolation model** —
-- **Storage design** —
-- **Identity model** —
-- **ML development environment** —
-
----
-
-> ## REFERENCE — DELETE THIS WHOLE SECTION BEFORE SUBMITTING
->
-> ### NorthStar facts (from the case)
-> | Fact | Value |
-> |---|---|
-> | Churn problem | $128.5M/yr = 2.1M customers × 18% × $340 LTV |
-> | Churn model | weekly batch, scores due Monday 6 AM ET; target 18% → 14% |
-> | Offer generation | RAG; **< 2 second** response; redemption 6% → 12% |
-> | Service agent | 14,000 contacts/day, 62% routine; **99.5% availability** 8 AM–10 PM |
-> | Regulation | GDPR, CCPA, FCRA/ECOA; **24-month** raw data retention |
-> | Platform budget | **$85,000/month**; your personal credits $200 |
-> | Clickstream | ~90,000 events/hour peak |
-> | Stakeholders | Maya Chen (CDO), Sarah Okafor (Chief Privacy Officer) |
->
-> ### What you actually built (use these numbers)
-> | Fact | Value |
-> |---|---|
-> | VPC | 10.0.0.0/16 = 65,536 addresses |
-> | Public subnet | 10.0.100.0/24 = 256 addresses (251 usable) → 65,280 free |
-> | AZ | us-east-1a only |
-> | Security group | inbound all traffic from 10.0.0.0/16 only; egress 0.0.0.0/0 |
-> | Bucket | one, 4 prefixes, versioning on, SSE-S3, all 4 public-access blocks |
-> | IAM | `raw/` PutObject simulates as **implicitDeny**; artifacts/features allowed |
-> | Rebuild | 19 resources, apply clean, destroy in 54s |
-> | Cost | $2.12/month; Studio is ~94%; idle space would be $36.50/month |
-> | NAT (Lab 2) | ~$32.85/month standing + $0.045/GB processing |
->
-> ### Useful arithmetic
-> - 99.5% availability ≈ **3.6 hours** of allowed downtime per 30-day month.
->   A single-AZ deployment cannot promise that — an AZ outage exceeds the whole
->   monthly budget in one event.
-> - S3 limits: 3,500 PUT/s and 5,500 GET/s **per prefix**. Clickstream at
->   90,000 events/hour ≈ 25/s, so prefixes are not a bottleneck yet.
-> - Studio at $0.05/hr: 40 hrs/month = $2.00; 730 hrs = $36.50.
->
-> ### Rubric (12 points)
-> | Item | Pts | What earns it |
-> |---|---|---|
-> | NorthStar-specific requirements | 4 | names churn scoring, LLM serving, or the three-system platform — not generic reasoning |
-> | Consequences concrete | 4 | every consequence cites a number, names a constraint, or identifies a failure mode |
-> | Alternative meaningful | 2 | could plausibly work; rejection reason is specific |
-> | Service selection covers 4 | 2 | one sentence per component with the deciding reason |
+- **Networking isolation model** - A VPC with a single public subnet, because
+  Studio needs outbound access to pull container images while NorthStar's
+  customer data requires that nothing on the public internet be able to initiate
+  a connection inward.
+- **Storage design** - S3 with one bucket and four stage prefixes, because
+  SageMaker reads training data from S3 natively and the prefixes give the
+  per-role access boundary that the 24-month retention and GDPR obligations
+  require.
+- **Identity model** - IAM roles assumed by services rather than long-lived user
+  keys, because three AI systems sharing one data store need access scoped per
+  stage, and a role that cannot write to `raw/` cannot corrupt the inputs the
+  churn model is measured on.
+- **ML development environment** - SageMaker Studio, because it gives the
+  notebook, training and model registry workflow the churn model needs in one
+  managed environment, and bills only while a space runs, keeping a $0.05/hr
+  instance from becoming a standing cost.
