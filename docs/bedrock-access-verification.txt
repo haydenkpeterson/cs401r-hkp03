@@ -1,0 +1,53 @@
+================================================================================
+Pre-Lab 3 - Bedrock Model Access Verification
+================================================================================
+Student:  Hayden Peterson (hkp03)
+Account:  319165777512
+Region:   us-east-1
+Date:     2026-09-29
+
+
+--------------------------------------------------------------------------------
+1. STEP 4 VERIFICATION OUTPUT
+--------------------------------------------------------------------------------
+PASS  Titan embeddings        dim=1024
+PASS  Claude Haiku 4.5        'OK'
+
+Models exercised:
+  embeddings  amazon.titan-embed-text-v2:0
+  generation  us.anthropic.claude-haiku-4-5-20251001-v1:0
+
+
+--------------------------------------------------------------------------------
+2. QUOTA CHECK - BOTH MODELS, NON-ZERO
+--------------------------------------------------------------------------------
+$ aws service-quotas list-service-quotas --service-code bedrock \
+    --query "Quotas[?contains(QuotaName, 'Titan Text Embeddings V2') \
+             && contains(QuotaName, 'per minute')].[QuotaName,Value,Adjustable]" \
+    --output table
+
+------------------------------------------------------------------------------------------------------------
+|                                             ListServiceQuotas                                            |
++-------------------------------------------------------------------------------------+-----------+--------+
+|  On-demand model inference requests per minute for Amazon Titan Text Embeddings V2  |  600.0    |  False |
+|  On-demand model inference tokens per minute for Amazon Titan Text Embeddings V2    |  300000.0 |  False |
++-------------------------------------------------------------------------------------+-----------+--------+
+
+$ aws service-quotas list-service-quotas --service-code bedrock \
+    --query "Quotas[?contains(QuotaName, 'Haiku 4.5') \
+             && contains(QuotaName, 'per minute')].[QuotaName,Value,Adjustable]" \
+    --output table
+
+-----------------------------------------------------------------------------------------------------------------
+|                                               ListServiceQuotas                                               |
++------------------------------------------------------------------------------------------+------------+-------+
+|  Cross-region model inference requests per minute for Anthropic Claude Haiku 4.5         |  50.0      |  True |
+|  Cross-region model inference tokens per minute for Anthropic Claude Haiku 4.5           |  5000000.0 |  True |
+|  Global cross-region model inference tokens per minute for Anthropic Claude Haiku 4.5    |  5000000.0 |  True |
+|  Global cross-region model inference requests per minute for Anthropic Claude Haiku 4.5  |  50.0      |  True |
++------------------------------------------------------------------------------------------+------------+-------+
+
+--------------------------------------------------------------------------------
+3. QUOTA INCREASES REQUESTED, AND REASONING
+--------------------------------------------------------------------------------
+I requested no increases, because we don't need any extra capacity. Our request and token usage are about 7% of Titan's request limit. The only potentially bottleneck would be the haiku 50 requests per minute.The embedding is small on 4000 words and even our setup now allows for more testing and development without hitting a limit.
