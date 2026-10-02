@@ -30,3 +30,23 @@ output "security_group_id" {
   description = "ID of the SageMaker security group"
   value       = module.vpc.security_group_id
 }
+
+output "private_subnet_id" {
+  description = "ID of the private subnet (SageMaker Domain and Glue workers)"
+  value       = module.vpc.private_subnet_id
+}
+
+output "nat_gateway_id" {
+  description = "ID of the NAT Gateway"
+  value       = module.vpc.nat_gateway_id
+}
+
+output "data_engineer_role_arn" {
+  description = "ARN of the DataEngineer role"
+  value       = module.iam.data_engineer_role_arn
+}
+
+output "model_monitor_role_arn" {
+  description = "ARN of the ModelMonitor role"
+  value       = module.iam.model_monitor_role_arn
+}

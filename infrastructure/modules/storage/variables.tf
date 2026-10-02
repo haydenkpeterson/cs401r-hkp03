@@ -15,3 +15,15 @@ variable "prefixes" {
   type        = list(string)
   default     = ["raw/", "processed/", "features/", "artifacts/"]
 }
+
+variable "enable_lifecycle_rules" {
+  description = "Attach the S3 lifecycle configuration. Set false in environments/local"
+  type        = bool
+  default     = true
+}
+
+variable "force_destroy" {
+  description = "Allow terraform destroy to delete the bucket while it still holds objects and versions. Only for regenerable data"
+  type        = bool
+  default     = false
+}

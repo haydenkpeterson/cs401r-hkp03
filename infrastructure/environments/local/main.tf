@@ -10,14 +10,20 @@ module "vpc" {
   source      = "../../modules/vpc"
   project     = var.project
   environment = var.environment
+
+  # A NAT Gateway bills on real AWS and has nothing to route here.
+  enable_nat_gateway = false
 }
 
 module "storage" {
   source      = "../../modules/storage"
   project     = var.project
   environment = var.environment
+
+  enable_lifecycle_rules = false
 }
 
+# Creates all three roles: MLEngineer, DataEngineer, ModelMonitor.
 module "iam" {
   source      = "../../modules/iam"
   project     = var.project

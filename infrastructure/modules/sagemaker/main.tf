@@ -1,7 +1,7 @@
 # ── modules/sagemaker ────────────────────────────────────────────────────────
-# Studio is the IDE for every ML task in this platform. In Lab 1 the Domain
-# sits in the public subnet for simplicity; Lab 2 moves it behind a NAT
-# Gateway in a private subnet.
+# Studio is the IDE for every ML task in this platform. Lab 1 put the Domain
+# in the public subnet for simplicity; from Lab 2 it runs in the private
+# subnet, behind the NAT Gateway.
 #
 # A brand-new AWS account has no AWSServiceRoleForAmazonSageMakerNotebooks
 # service-linked role and the Domain create fails with a service-linked role
@@ -18,10 +18,10 @@ resource "aws_sagemaker_domain" "this" {
   vpc_id      = var.vpc_id
   subnet_ids  = var.subnet_ids
 
-  # Stated explicitly rather than left to the provider default. In Lab 1
-  # Studio sits in a public subnet with no NAT, so egress goes out over the
-  # SageMaker-managed network path. Lab 2 flips this to VpcOnly once a NAT
-  # Gateway exists to carry the traffic.
+  # Stated explicitly rather than left to the provider default. Lab 1 had no
+  # NAT, so egress used the SageMaker-managed path (PublicInternetOnly).
+  # environments/dev now passes VpcOnly: all Studio traffic stays in the VPC
+  # and leaves through the NAT Gateway. Changing this forces replacement.
   app_network_access_type = var.app_network_access_type
 
   # Studio creates an EFS filesystem for home directories that Terraform never

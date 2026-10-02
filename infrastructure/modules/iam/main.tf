@@ -1,7 +1,11 @@
 # ── modules/iam ──────────────────────────────────────────────────────────────
-# The identity model. In Lab 1 there is exactly one role: MLEngineer, assumed
-# by SageMaker. Lab 2 adds DataEngineer and ModelMonitor once Glue, Lambda and
-# CloudWatch are introduced.
+# The identity model: three roles, each defined as much by what it cannot do
+# as by what it can.
+#
+#   MLEngineer   - reads features/, writes artifacts/. Assumed by SageMaker.
+#   DataEngineer - writes raw/, processed/, features/; cannot write artifacts/.
+#                  Assumed by Glue, Lambda, and SageMaker (Feature Store).
+#   ModelMonitor - reads artifacts/, writes CloudWatch metrics. Observes only.
 #
 # The S3 grants are deliberately split. Object actions are scoped to the
 # artifacts/ and features/ prefixes; ListBucket is granted on the bucket ARN
@@ -10,9 +14,11 @@
 # defined by NOT having.
 
 locals {
-  name_prefix   = "${var.project}-${var.environment}"
-  role_name     = "${local.name_prefix}-${var.role_suffix}"
-  bucket_prefix = "arn:aws:s3:::${local.name_prefix}-data-*"
+  name_prefix             = "${var.project}-${var.environment}"
+  role_name               = "${local.name_prefix}-${var.role_suffix}"
+  data_engineer_role_name = "${local.name_prefix}-${var.data_engineer_role_suffix}"
+  model_monitor_role_name = "${local.name_prefix}-${var.model_monitor_role_suffix}"
+  bucket_prefix           = "arn:aws:s3:::${local.name_prefix}-data-*"
 }
 
 resource "aws_iam_role" "ml_engineer" {
@@ -127,4 +133,225 @@ resource "aws_iam_policy" "ml_engineer" {
 resource "aws_iam_role_policy_attachment" "ml_engineer" {
   role       = aws_iam_role.ml_engineer.name
   policy_arn = aws_iam_policy.ml_engineer.arn
+}
+
+# ── DataEngineer ─────────────────────────────────────────────────────────────
+# The data-plane identity: Glue crawlers and ETL jobs run as this role, and
+# Feature Store uses it as the feature group's execution role.
+
+resource "aws_iam_role" "data_engineer" {
+  name        = local.data_engineer_role_name
+  description = "Execution role for Glue crawlers and ETL jobs, Lambda ingestion, and the Feature Store offline store"
+
+  # sagemaker.amazonaws.com is here only because CreateFeatureGroup rejects an
+  # execution role that SageMaker cannot assume, and reports it as "The
+  # execution role ARN is invalid" rather than naming the trust policy.
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = [
+            "glue.amazonaws.com",
+            "lambda.amazonaws.com",
+            "sagemaker.amazonaws.com",
+          ]
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = local.data_engineer_role_name
+  }
+}
+
+resource "aws_iam_policy" "data_engineer" {
+  name        = "${local.data_engineer_role_name}Policy"
+  description = "Glue, Feature Store write, and S3 raw/processed/features access for the DataEngineer role"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # glue:* includes glue:GetConnection. Glue resolves the job's NETWORK
+        # connection before the script runs, so without it the job fails at
+        # provisioning with "DataCatalog Connection issue".
+        Sid      = "GlueFull"
+        Effect   = "Allow"
+        Action   = ["glue:*"]
+        Resource = "*"
+      },
+      {
+        # Glue workers in the private subnet run on ENIs that Glue creates in
+        # this account, as this role. The Describe calls are how Glue checks
+        # the subnet and security group before it creates them.
+        Sid    = "GlueVpcNetworkInterfaces"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeVpcAttribute",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:DescribeDhcpOptions",
+        ]
+        Resource = "*"
+      },
+      {
+        # Glue tags every ENI it creates. Without this the job fails with
+        # "doesn't have a permission to create a tag for your elastic network
+        # interface".
+        Sid      = "GlueNetworkInterfaceTags"
+        Effect   = "Allow"
+        Action   = ["ec2:CreateTags", "ec2:DeleteTags"]
+        Resource = "arn:aws:ec2:*:*:network-interface/*"
+      },
+      {
+        Sid      = "S3DataStages"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = [for prefix in var.data_engineer_writable_prefixes : "${local.bucket_prefix}/${prefix}*"]
+      },
+      {
+        # The offline store writes objects with an ACL; plain PutObject is not
+        # enough for it.
+        Sid      = "S3FeatureStoreOfflineAcl"
+        Effect   = "Allow"
+        Action   = ["s3:PutObjectAcl"]
+        Resource = "${local.bucket_prefix}/features/*"
+      },
+      {
+        # Glue fetches its own job scripts from artifacts/glue/. Read only:
+        # this role must never write artifacts/.
+        Sid      = "S3GlueScriptsRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = [for prefix in var.data_engineer_readonly_prefixes : "${local.bucket_prefix}/${prefix}*"]
+      },
+      {
+        # GetBucketAcl: Feature Store checks the bucket ACL before accepting it
+        # as an offline store, and reports a missing grant as "Invalid S3Uri".
+        Sid      = "S3BucketLevel"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetBucketAcl"]
+        Resource = local.bucket_prefix
+      },
+      {
+        Sid    = "FeatureStoreWrite"
+        Effect = "Allow"
+        Action = [
+          "sagemaker:PutRecord",
+          "sagemaker:CreateFeatureGroup",
+          "sagemaker:DescribeFeatureGroup",
+        ]
+        Resource = "arn:aws:sagemaker:*:*:feature-group/*"
+      },
+      {
+        Sid    = "CloudWatchLogs"
+        Effect = "Allow"
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = [
+          "arn:aws:logs:*:*:log-group:/aws-glue/*",
+          "arn:aws:logs:*:*:log-group:/aws/lambda/*",
+        ]
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "data_engineer" {
+  role       = aws_iam_role.data_engineer.name
+  policy_arn = aws_iam_policy.data_engineer.arn
+}
+
+# ── ModelMonitor ─────────────────────────────────────────────────────────────
+# Watches, never acts. It can read drift results and raise alarms, but it
+# cannot start a processing job, invoke an endpoint, or write to S3. Running
+# the drift analysis is ModelMonitorExecution's job (Lab 6).
+
+resource "aws_iam_role" "model_monitor" {
+  name        = local.model_monitor_role_name
+  description = "Read-only observer for drift results; publishes CloudWatch metrics and alarms"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "sagemaker.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = local.model_monitor_role_name
+  }
+}
+
+resource "aws_iam_policy" "model_monitor" {
+  name        = "${local.model_monitor_role_name}Policy"
+  description = "CloudWatch metrics and alarms, processing-job visibility, and read-only artifacts/ access"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # None of these four support resource-level permissions.
+        Sid    = "CloudWatchMetricsAndAlarms"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:DescribeAlarms",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "ProcessingJobVisibility"
+        Effect   = "Allow"
+        Action   = ["sagemaker:ListProcessingJobs", "sagemaker:DescribeProcessingJob"]
+        Resource = "*"
+      },
+      {
+        Sid      = "S3ArtifactsRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = [for prefix in var.model_monitor_readonly_prefixes : "${local.bucket_prefix}/${prefix}*"]
+      },
+      {
+        # Listing is limited to the same prefixes it may read.
+        Sid      = "S3ArtifactsList"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = local.bucket_prefix
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [for prefix in var.model_monitor_readonly_prefixes : "${prefix}*"]
+          }
+        }
+      },
+      {
+        Sid      = "CloudWatchLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:*:*:log-group:/aws/sagemaker/*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "model_monitor" {
+  role       = aws_iam_role.model_monitor.name
+  policy_arn = aws_iam_policy.model_monitor.arn
 }

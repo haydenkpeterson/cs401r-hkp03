@@ -22,8 +22,20 @@ variable "public_subnet_cidr" {
   default     = "10.0.100.0/24"
 }
 
+variable "private_subnet_cidr" {
+  description = "CIDR block for the private subnet (SageMaker Domain and Glue workers)"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
 variable "availability_zone" {
-  description = "Availability Zone for the public subnet"
+  description = "Availability Zone for the public and private subnets"
   type        = string
   default     = "us-east-1a"
+}
+
+variable "enable_nat_gateway" {
+  description = "Create the NAT Gateway and its Elastic IP. Set false in environments/local, where a NAT Gateway has nothing to route"
+  type        = bool
+  default     = true
 }
