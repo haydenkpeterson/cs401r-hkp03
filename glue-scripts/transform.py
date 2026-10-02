@@ -63,8 +63,28 @@ def cast_types(df):
     key for every downstream feature, so a row without it cannot be
     attributed to anyone.
     """
-    # TODO: your implementation here
-    raise NotImplementedError("cast_types is not implemented")
+    # 1 + 2. The crawler may type some columns (order_value as double,
+    # num_items as bigint), so go through string first, then trim and turn
+    # blanks into real nulls.
+    for c in SCHEMA:
+        trimmed = F.trim(F.col(c).cast("string"))
+        df = df.withColumn(c, F.when(trimmed == "", None).otherwise(trimmed))
+
+    # 3. Two date formats in the data; to_date gives null on a mismatch, so
+    # try both and keep whichever parsed.
+    df = df.withColumn(
+        "purchase_date",
+        F.coalesce(
+            F.to_date("purchase_date", "yyyy-MM-dd"),
+            F.to_date("purchase_date", "MM/dd/yyyy"),
+        ),
+    )
+
+    for c, dtype in SCHEMA.items():
+        if c != "purchase_date":
+            df = df.withColumn(c, F.col(c).cast(dtype))
+
+    return df.filter(F.col("customer_id").isNotNull()).select(*SCHEMA)
 
 
 def impute_nulls(df):
@@ -79,8 +99,13 @@ def impute_nulls(df):
 
     Numeric columns: NUMERIC_COLS.  String columns: STRING_COLS.
     """
-    # TODO: your implementation here
-    raise NotImplementedError("impute_nulls is not implemented")
+    fills = {}
+    for c in NUMERIC_COLS:
+        median = df.approxQuantile(c, [0.5], 0.0)[0]
+        fills[c] = int(round(median)) if SCHEMA[c] == "int" else float(median)
+    for c in STRING_COLS:
+        fills[c] = "unknown"
+    return df.fillna(fills)
 
 
 def deduplicate(df):
@@ -101,8 +126,13 @@ def deduplicate(df):
     A window function with row_number() over a partition by transaction_id
     is the idiomatic approach.
     """
-    # TODO: your implementation here
-    raise NotImplementedError("deduplicate is not implemented")
+    newest_first = Window.partitionBy("transaction_id").orderBy(
+        F.col("purchase_date").desc(),
+        F.col("order_value").desc(),
+    )
+    return (df.withColumn("_rank", F.row_number().over(newest_first))
+              .filter(F.col("_rank") == 1)
+              .drop("_rank"))
 
 
 def main():
