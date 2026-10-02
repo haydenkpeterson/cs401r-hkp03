@@ -1,0 +1,37 @@
+Teardown verification - 2026-10-02T17:19:29Z
+First teardown run: terraform destroy removed 34 resources (docs/lab2-destroy-output.txt). Its step 6 left 3 lineage
+contexts and 1 artifact because the CLI's text output on Windows ends lines with CR, so the
+association ARNs it read were malformed. Those were unlinked and deleted by hand, then the script
+was re-run; its output follows.
+
+==> Lab 2 teardown
+    Account : 319165777512
+    Region  : us-east-1
+    Bucket  : northstar-dev-data-319165777512
+
+[1/7] Bucket northstar-dev-data-319165777512 not present - skipping
+[2/7] Removing Feature Store Glue catalog database
+      not present
+[2b/7] Removing orphaned Glue network interfaces
+[3/7] terraform destroy
+Either you have not created any objects yet or the existing objects were
+already deleted outside of Terraform.
+
+Destroy complete! Resources: 0 destroyed.
+[4/7] Removing orphaned SageMaker Studio EFS filesystems
+[5/7] Removing orphaned ENIs and SageMaker NFS security groups
+[6/7] Removing orphaned SageMaker lineage contexts and artifacts
+[7/7] Verifying teardown
+      NAT gateways           OK
+      Elastic IPs            OK
+      SageMaker domains      OK
+      Feature groups         OK
+      EFS filesystems        OK
+      Glue jobs              OK
+      NorthStar VPCs         OK
+      Lineage contexts       OK
+      Lineage artifacts      OK
+      Glue databases         OK
+
+==> Teardown complete. No billable Lab 2 resources remain.
+    The Terraform state bucket is intentionally retained for Lab 3.

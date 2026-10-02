@@ -1,0 +1,139 @@
+Lab 2 AWS evidence - captured 2026-10-02T17:11:48Z before teardown (account 319165777512, us-east-1)
+
+$ aws iam list-roles --query "Roles[?starts_with(RoleName, 'northstar-dev')].RoleName" --output table
+--------------------------------
+|           ListRoles          |
++------------------------------+
+|  northstar-dev-DataEngineer  |
+|  northstar-dev-MLEngineer    |
+|  northstar-dev-ModelMonitor  |
++------------------------------+
+
+$ aws sagemaker describe-domain --domain-id d-eajscqe0zvxu --query '{Status:Status,SubnetIds:SubnetIds,AppNetworkAccessType:AppNetworkAccessType}' --output json
+{
+    "Status": "InService",
+    "SubnetIds": [
+        "subnet-0d5b13b6bd272fce3"
+    ],
+    "AppNetworkAccessType": "VpcOnly"
+}
+
+$ aws ec2 describe-nat-gateways --filter Name=state,Values=available --query 'NatGateways[].{Id:NatGatewayId,State:State,Subnet:SubnetId}' --output table
+--------------------------------------------------------------------
+|                        DescribeNatGateways                       |
++------------------------+------------+----------------------------+
+|           Id           |   State    |          Subnet            |
++------------------------+------------+----------------------------+
+|  nat-07c148772e2637d90 |  available |  subnet-0751c76d95efa7d0e  |
++------------------------+------------+----------------------------+
+
+$ aws ec2 describe-subnets --filters Name=tag:Name,Values=northstar-dev-private-1 --query 'Subnets[].{Id:SubnetId,CIDR:CidrBlock,PublicIpOnLaunch:MapPublicIpOnLaunch}' --output table
+-----------------------------------------------------------------
+|                        DescribeSubnets                        |
++-------------+----------------------------+--------------------+
+|    CIDR     |            Id              | PublicIpOnLaunch   |
++-------------+----------------------------+--------------------+
+|  10.0.1.0/24|  subnet-0d5b13b6bd272fce3  |  False             |
++-------------+----------------------------+--------------------+
+
+$ aws s3api get-bucket-lifecycle-configuration --bucket northstar-dev-data-319165777512 --query 'Rules[].{ID:ID,Prefix:Filter.Prefix,ExpireDays:Expiration.Days,NoncurrentDays:NoncurrentVersionExpiration.NoncurrentDays}' --output table
+-------------------------------------------------------------------------------
+|                       GetBucketLifecycleConfiguration                       |
++------------+-----------------------------+-----------------+----------------+
+| ExpireDays |             ID              | NoncurrentDays  |    Prefix      |
++------------+-----------------------------+-----------------+----------------+
+|  90        |  expire-raw-data            |  None           |  raw/          |
+|  None      |  expire-raw-versions        |  30             |  raw/          |
+|  None      |  expire-processed-versions  |  30             |  processed/    |
+|  None      |  expire-feature-versions    |  60             |  features/     |
+|  7         |  expire-datacapture         |  None           |  datacapture/  |
++------------+-----------------------------+-----------------+----------------+
+
+$ aws glue get-table --database-name northstar_dev --name customers --query 'Table.StorageDescriptor.Columns[].[Name,Type]' --output table
+--------------------------------
+|           GetTable           |
++-------------------+----------+
+|  transaction_id   |  string  |
+|  customer_id      |  string  |
+|  purchase_date    |  string  |
+|  order_value      |  double  |
+|  num_items        |  bigint  |
+|  payment_method   |  string  |
+|  channel          |  string  |
+|  store_id         |  string  |
+|  product_category |  string  |
++-------------------+----------+
+
+$ aws glue get-job-runs --job-name northstar-dev-transform --query 'JobRuns[0].{Job:JobName,State:JobRunState,Seconds:ExecutionTime}' --output table
+-----------------------------------------------------
+|                    GetJobRuns                     |
++--------------------------+----------+-------------+
+|            Job           | Seconds  |    State    |
++--------------------------+----------+-------------+
+|  northstar-dev-transform |  119     |  SUCCEEDED  |
++--------------------------+----------+-------------+
+
+$ aws glue get-job-runs --job-name northstar-dev-feature-engineer --query 'JobRuns[0].{Job:JobName,State:JobRunState,Seconds:ExecutionTime}' --output table
+------------------------------------------------------------
+|                        GetJobRuns                        |
++---------------------------------+----------+-------------+
+|               Job               | Seconds  |    State    |
++---------------------------------+----------+-------------+
+|  northstar-dev-feature-engineer |  181     |  SUCCEEDED  |
++---------------------------------+----------+-------------+
+
+$ aws sagemaker describe-feature-group --feature-group-name northstar-dev-customer-features --query '{Status:FeatureGroupStatus,Online:OnlineStoreConfig.EnableOnlineStore,Offline:OfflineStoreConfig.S3StorageConfig.S3Uri,Count:length(FeatureDefinitions)}' --output json
+{
+    "Status": "Created",
+    "Online": true,
+    "Offline": "s3://northstar-dev-data-319165777512/features/offline-store/",
+    "Count": 16
+}
+
+$ aws sagemaker describe-feature-group --feature-group-name northstar-dev-customer-features --query 'FeatureDefinitions[].[FeatureName,FeatureType]' --output table
+--------------------------------------------
+|           DescribeFeatureGroup           |
++---------------------------+--------------+
+|  customer_id              |  String      |
+|  event_time               |  Fractional  |
+|  days_since_last_purchase |  Fractional  |
+|  customer_tenure_days     |  Fractional  |
+|  purchase_frequency_30d   |  Fractional  |
+|  purchase_frequency_90d   |  Fractional  |
+|  purchase_frequency_180d  |  Fractional  |
+|  avg_order_value          |  Fractional  |
+|  total_spend_90d          |  Fractional  |
+|  total_lifetime_value     |  Fractional  |
+|  avg_basket_size_6m       |  Fractional  |
+|  category_diversity_score |  Fractional  |
+|  online_to_store_ratio    |  Fractional  |
+|  loyalty_tier             |  String      |
+|  churn_risk_score         |  Fractional  |
+|  churn_label              |  Integral    |
++---------------------------+--------------+
+
+$ aws sagemaker-featurestore-runtime get-record --feature-group-name northstar-dev-customer-features --record-identifier-value-as-string CUST-10000776 --output table
+-------------------------------------------------
+|                   GetRecord                   |
++-----------------------------------------------+
+||                   Record                    ||
+|+---------------------------+-----------------+|
+||        FeatureName        |  ValueAsString  ||
+|+---------------------------+-----------------+|
+||  customer_id              |  CUST-10000776  ||
+||  event_time               |  1790960767.0   ||
+||  days_since_last_purchase |  32.0           ||
+||  customer_tenure_days     |  354.0          ||
+||  purchase_frequency_30d   |  0.0            ||
+||  purchase_frequency_90d   |  3.0            ||
+||  purchase_frequency_180d  |  9.0            ||
+||  avg_order_value          |  208.3719       ||
+||  total_spend_90d          |  688.26         ||
+||  total_lifetime_value     |  4375.81        ||
+||  avg_basket_size_6m       |  4.7778         ||
+||  category_diversity_score |  0.375          ||
+||  online_to_store_ratio    |  0.2857         ||
+||  loyalty_tier             |  Gold           ||
+||  churn_risk_score         |  0.42           ||
+||  churn_label              |  0              ||
+|+---------------------------+-----------------+|
