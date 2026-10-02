@@ -1,5 +1,5 @@
 # ── environments/dev ─────────────────────────────────────────────────────────
-# Wires the four modules together. Every module call passes var.project and
+# Wires the six modules together. Every module call passes var.project and
 # var.environment down; nothing in modules/ hardcodes a name.
 
 module "vpc" {
@@ -40,4 +40,26 @@ module "sagemaker" {
   # Studio egress goes through the VPC (and so the NAT Gateway) instead of the
   # SageMaker-managed internet path.
   app_network_access_type = "VpcOnly"
+}
+
+module "feature_store" {
+  source      = "../../modules/feature_store"
+  project     = var.project
+  environment = var.environment
+  bucket_name = module.storage.bucket_name
+  role_arn    = module.iam.data_engineer_role_arn
+}
+
+module "glue" {
+  source             = "../../modules/glue"
+  project            = var.project
+  environment        = var.environment
+  region             = var.aws_region
+  bucket_name        = module.storage.bucket_name
+  role_arn           = module.iam.data_engineer_role_arn
+  vpc_id             = module.vpc.vpc_id
+  subnet_id          = module.vpc.private_subnet_id
+  availability_zone  = var.availability_zone
+  feature_group_name = module.feature_store.feature_group_name
+  scripts_dir        = "${path.root}/../../../glue-scripts"
 }

@@ -16,6 +16,11 @@ output "ml_engineer_policy_arn" {
 output "data_engineer_role_arn" {
   description = "ARN of the DataEngineer role - Glue jobs, crawlers, and the feature group run as it"
   value       = aws_iam_role.data_engineer.arn
+
+  # The role exists before its policy is attached. CreateFeatureGroup checks
+  # the role's permissions on the spot, so nothing may consume this ARN until
+  # the attachment is in place.
+  depends_on = [aws_iam_role_policy_attachment.data_engineer]
 }
 
 output "data_engineer_role_name" {

@@ -50,3 +50,28 @@ output "model_monitor_role_arn" {
   description = "ARN of the ModelMonitor role"
   value       = module.iam.model_monitor_role_arn
 }
+
+output "glue_database_name" {
+  description = "Glue catalog database"
+  value       = module.glue.database_name
+}
+
+output "glue_crawler_name" {
+  description = "Raw data crawler"
+  value       = module.glue.crawler_name
+}
+
+output "glue_transform_job_name" {
+  description = "Transform ETL job"
+  value       = module.glue.transform_job_name
+}
+
+output "glue_feature_engineer_job_name" {
+  description = "Feature engineering ETL job"
+  value       = module.glue.feature_engineer_job_name
+}
+
+output "feature_group_name" {
+  description = "Customer feature group"
+  value       = module.feature_store.feature_group_name
+}
