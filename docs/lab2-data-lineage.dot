@@ -1,0 +1,47 @@
+// Lab 2 data lineage: source system to Feature Store.
+// Render: docker run --rm -v "$PWD/docs:/d" nshine/dot dot -Tpng -Gdpi=130 /d/lab2-data-lineage.dot -o /d/lab2-data-lineage.png
+// Edge labels: data format, and on every write the IAM role performing it.
+
+digraph lineage {
+  rankdir=TB;
+  newrank=true;
+  graph [fontname="Helvetica", fontsize=12, nodesep=0.9, ranksep=0.55, pad=0.3,
+         label="NorthStar Lab 2 - data lineage (S3 bucket northstar-dev-data-<account>)\nEvery write in the pipeline is performed by northstar-dev-DataEngineer",
+         labelloc=t, fontsize=15];
+  node  [fontname="Helvetica", fontsize=11, style="rounded,filled", shape=box, penwidth=1.2];
+  edge  [fontname="Helvetica", fontsize=9.5, color="#444444", penwidth=1.2];
+
+  // storage / stores
+  node [fillcolor="#E8F1FB", color="#2F6DB5"];
+  raw       [label="S3 raw/customers/\nnorthstar-raw-sample.csv\n(163,255 rows, dirty)"];
+  catalog   [label="Glue Data Catalog\nnorthstar_dev.customers\n(schema only)", shape=cylinder];
+  processed [label="S3 processed/customers/\n(157,627 rows, one per transaction)"];
+  features  [label="S3 features/customers/\n(9,999 rows, one per customer)"];
+  fg        [label="SageMaker Feature Store\nnorthstar-dev-customer-features\n(online store)", shape=cylinder];
+  offline   [label="S3 features/offline-store/\n(managed by Feature Store)"];
+
+  // compute
+  node [fillcolor="#FFF4E0", color="#C77700"];
+  crawler   [label="Glue Crawler\nnorthstar-dev-raw-crawler"];
+  transform [label="Glue ETL Job\nnorthstar-dev-transform\n(cast, impute, dedup)"];
+  fe        [label="Glue ETL Job\nnorthstar-dev-feature-engineer\n(temporal split, 13 features + label)"];
+
+  // outside the pipeline
+  node [fillcolor="#EEEEEE", color="#777777"];
+  source    [label="Source system\n(NorthStar POS +\ne-commerce export)"];
+  training  [label="Model training\n(Lab 3+)\nnorthstar-dev-MLEngineer", style="rounded,filled,dashed"];
+
+  source    -> raw       [label="CSV upload\nwrite: DataEngineer"];
+  raw       -> crawler   [label="CSV (scan schema)\nread: DataEngineer"];
+  crawler   -> catalog   [label="table metadata\nwrite: DataEngineer"];
+  catalog   -> transform [label="CSV via catalog\nread: DataEngineer"];
+  transform -> processed [label="Parquet\nwrite: DataEngineer"];
+  processed -> fe        [label="Parquet\nread: DataEngineer"];
+  fe        -> features  [label="Parquet\nwrite: DataEngineer"];
+  fe        -> fg        [label="Feature Store records (PutRecord)\nwrite: DataEngineer"];
+  fg        -> offline   [label="Parquet (async replication)\nwrite: Feature Store as DataEngineer", style=dashed];
+  features  -> training  [label="Parquet\nread: MLEngineer", style=dashed];
+  fg        -> training  [label="Feature Store records\nread: MLEngineer", style=dashed];
+
+  { rank=same; features; fg; }
+}
