@@ -73,9 +73,4 @@ variable "feature_definitions" {
     # label - from the outcome window only
     { name = "churn_label", type = "Integral" },
   ]
-
-  validation {
-    condition     = alltrue([for f in var.feature_definitions : contains(["String", "Fractional", "Integral"], f.type)])
-    error_message = "Each feature type must be String, Fractional, or Integral."
-  }
 }

@@ -187,20 +187,13 @@ resource "aws_iam_policy" "data_engineer" {
       {
         # Glue workers in the private subnet run on ENIs that Glue creates in
         # this account, as this role. The Describe calls are how Glue checks
-        # the subnet and security group before it creates them.
+        # the subnet, route table, and security group before it creates them.
         Sid    = "GlueVpcNetworkInterfaces"
         Effect = "Allow"
         Action = [
           "ec2:CreateNetworkInterface",
           "ec2:DeleteNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DescribeVpcs",
-          "ec2:DescribeVpcAttribute",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeRouteTables",
-          "ec2:DescribeVpcEndpoints",
-          "ec2:DescribeDhcpOptions",
+          "ec2:Describe*",
         ]
         Resource = "*"
       },
@@ -328,18 +321,6 @@ resource "aws_iam_policy" "model_monitor" {
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
         Resource = [for prefix in var.model_monitor_readonly_prefixes : "${local.bucket_prefix}/${prefix}*"]
-      },
-      {
-        # Listing is limited to the same prefixes it may read.
-        Sid      = "S3ArtifactsList"
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
-        Resource = local.bucket_prefix
-        Condition = {
-          StringLike = {
-            "s3:prefix" = [for prefix in var.model_monitor_readonly_prefixes : "${prefix}*"]
-          }
-        }
       },
       {
         Sid      = "CloudWatchLogs"

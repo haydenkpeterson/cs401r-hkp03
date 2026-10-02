@@ -37,7 +37,7 @@ resource "aws_glue_catalog_database" "this" {
 # to be the group itself. Kept separate from the SageMaker security group,
 # which is unchanged in Lab 2.
 resource "aws_security_group" "glue" {
-  name        = "${local.name_prefix}-glue-sg"
+  name        = "${local.name_prefix}-${var.security_group_suffix}"
   description = "Glue job workers - self-referencing ingress for Spark, unrestricted egress via NAT"
   vpc_id      = var.vpc_id
 
@@ -58,7 +58,7 @@ resource "aws_security_group" "glue" {
   }
 
   tags = {
-    Name = "${local.name_prefix}-glue-sg"
+    Name = "${local.name_prefix}-${var.security_group_suffix}"
   }
 }
 
@@ -85,11 +85,6 @@ resource "aws_glue_crawler" "raw" {
 
   s3_target {
     path = local.raw_path
-  }
-
-  schema_change_policy {
-    update_behavior = "UPDATE_IN_DATABASE"
-    delete_behavior = "LOG"
   }
 }
 
@@ -120,7 +115,6 @@ resource "aws_glue_job" "transform" {
   worker_type       = var.worker_type
   number_of_workers = var.number_of_workers
   timeout           = var.timeout_minutes
-  max_retries       = 0
   connections       = [aws_glue_connection.network.name]
 
   command {
@@ -130,16 +124,11 @@ resource "aws_glue_job" "transform" {
   }
 
   default_arguments = {
-    "--job-language"                     = "python"
     "--TempDir"                          = local.temp_path
     "--enable-continuous-cloudwatch-log" = "true"
     "--database_name"                    = aws_glue_catalog_database.this.name
     "--table_name"                       = var.raw_table_name
     "--output_path"                      = local.processed_path
-  }
-
-  execution_property {
-    max_concurrent_runs = 1
   }
 }
 
@@ -151,7 +140,6 @@ resource "aws_glue_job" "feature_engineer" {
   worker_type       = var.worker_type
   number_of_workers = var.number_of_workers
   timeout           = var.timeout_minutes
-  max_retries       = 0
   connections       = [aws_glue_connection.network.name]
 
   command {
@@ -161,16 +149,11 @@ resource "aws_glue_job" "feature_engineer" {
   }
 
   default_arguments = {
-    "--job-language"                     = "python"
     "--TempDir"                          = local.temp_path
     "--enable-continuous-cloudwatch-log" = "true"
     "--input_path"                       = local.processed_path
     "--output_path"                      = local.features_path
     "--feature_group_name"               = var.feature_group_name
     "--region"                           = var.region
-  }
-
-  execution_property {
-    max_concurrent_runs = 1
   }
 }

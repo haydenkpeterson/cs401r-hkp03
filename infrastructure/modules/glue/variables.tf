@@ -73,6 +73,12 @@ variable "feature_engineer_job_suffix" {
   default     = "feature-engineer"
 }
 
+variable "security_group_suffix" {
+  description = "Glue workers security group name suffix, appended to project-environment"
+  type        = string
+  default     = "glue-sg"
+}
+
 variable "connection_suffix" {
   description = "Glue NETWORK connection name suffix, appended to project-environment"
   type        = string
