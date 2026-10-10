@@ -1,0 +1,16 @@
+# Lab 3 Python dependencies. Install: pip install -r requirements-lab3.txt
+# xgboost is pinned to the version the lab's reference metrics were measured on.
+xgboost==3.2.0
+scikit-learn
+pandas
+pyarrow
+boto3
+mlflow
+sagemaker-mlflow
+# Track B (RAG). langchain-community must stay <0.4: newer versions drop a
+# module RAGAS imports at load, and the install succeeds but `import ragas` fails.
+ragas==0.4.3
+datasets
+langchain-community<0.4
+langchain-aws
+faiss-cpu
