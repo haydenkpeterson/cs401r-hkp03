@@ -9,3 +9,8 @@ __pycache__/
 *.zip
 .aws/
 .localstack/
+
+# Local training outputs (copy deliverables into docs/ explicitly)
+/model/
+/output/
+evaluation_results/
