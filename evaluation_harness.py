@@ -359,7 +359,11 @@ def build_bedrock_judge(model_id: str, region: str = "us-east-1"):
 
     llm = LangchainLLMWrapper(ChatBedrock(
         model_id=model_id, region_name=region,
-        model_kwargs={"temperature": 0},   # judging should be deterministic
+        # judging should be deterministic. max_tokens: without it the judge
+        # runs on the client default, and a statement-by-statement verdict for
+        # a multi-sentence answer gets cut off (LLMDidNotFinishException),
+        # which RAGAS records as a missing score.
+        model_kwargs={"temperature": 0, "max_tokens": 4096},
     ))
     embeddings = LangchainEmbeddingsWrapper(BedrockEmbeddings(
         model_id="amazon.titan-embed-text-v2:0", region_name=region,
@@ -674,6 +678,10 @@ def main():
     parser.add_argument("--bedrock-model-id",
                         default=DEFAULT_BEDROCK_MODEL_ID)
     parser.add_argument("--vector-store-endpoint", default=None)
+    parser.add_argument("--retrieval-strategy", default="ABD",
+                        help="offer_rag.py retrieval strategy: Template 4 options A/B/C, or a "
+                             "combination such as AB or ABD (D = offer-limits query)")
+    parser.add_argument("--k", type=int, default=5, help="chunks retrieved per query")
 
     # Track C args
     parser.add_argument("--agent-id", default=None)
@@ -692,22 +700,21 @@ def main():
         print("Track B: Offer Generation RAG Evaluation")
         print("=" * 50)
 
-        # TODO: Wire up your actual RAG invocation function here.
-        # The function receives (customer_context: dict, question: str)
-        # and must return {"answer": str, "contexts": list[str]}
-        def placeholder_rag_fn(context, question):
-            """Replace this with your actual RAG system invocation."""
-            raise NotImplementedError(
-                "TODO: Replace this placeholder with your RAG system invocation.\n"
-                "The function should call your Bedrock + vector store pipeline\n"
-                "and return {'answer': str, 'contexts': list[str]}"
-            )
+        # The RAG system lives in offer_rag.py. Its generate() takes
+        # (customer_context, question) and returns {"answer", "contexts", ...}.
+        from offer_rag import OfferRAG
+        rag = OfferRAG(strategy=args.retrieval_strategy, k=args.k, region=args.region)
+        print(f"Retrieval strategy {args.retrieval_strategy}, k={args.k}, "
+              f"{len(rag.chunks)} policy chunks indexed")
 
-        evaluator = RAGEvaluator(rag_invoke_fn=placeholder_rag_fn,
+        evaluator = RAGEvaluator(rag_invoke_fn=rag.generate,
                                  bedrock_model_id=args.bedrock_model_id,
                                  region=args.region)
         results = evaluator.run(OFFER_TEST_CASES)
-        output_path = os.path.join(args.output_dir, f"rag_eval_{timestamp}.csv")
+        print(f"Generation cost: {rag.usage['calls']} calls, ~${rag.cost_usd():.4f} "
+              f"(judge calls are billed separately)")
+        output_path = os.path.join(
+            args.output_dir, f"rag_eval_{args.retrieval_strategy}_k{args.k}_{timestamp}.csv")
         results.to_csv(output_path, index=False)
         print(f"Results saved to {output_path}")
 
