@@ -22,8 +22,3 @@ output "connection_name" {
   description = "Name of the Glue NETWORK connection into the private subnet"
   value       = aws_glue_connection.network.name
 }
-
-output "security_group_id" {
-  description = "ID of the Glue workers security group"
-  value       = aws_security_group.glue.id
-}

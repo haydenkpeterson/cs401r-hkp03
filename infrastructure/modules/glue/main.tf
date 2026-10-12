@@ -31,37 +31,9 @@ resource "aws_glue_catalog_database" "this" {
 }
 
 # ── Network ──────────────────────────────────────────────────────────────────
-# Glue refuses a NETWORK connection unless an attached security group allows
-# all inbound traffic from itself: Spark workers talk to each other on
-# arbitrary ports. A VPC-CIDR rule does not satisfy the check; the source has
-# to be the group itself. Kept separate from the SageMaker security group,
-# which is unchanged in Lab 2.
-resource "aws_security_group" "glue" {
-  name        = "${local.name_prefix}-${var.security_group_suffix}"
-  description = "Glue job workers - self-referencing ingress for Spark, unrestricted egress via NAT"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "All traffic between Glue workers in this group"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    self        = true
-  }
-
-  egress {
-    description = "All outbound traffic - S3 and AWS APIs via the NAT Gateway"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${local.name_prefix}-${var.security_group_suffix}"
-  }
-}
-
+# The connection places Glue job workers in the private subnet. It uses the
+# platform security group from modules/vpc, which carries the self-referencing
+# all-ports rule Glue requires.
 resource "aws_glue_connection" "network" {
   name            = "${local.name_prefix}-${var.connection_suffix}"
   description     = "Places Glue job workers in the private subnet"
@@ -70,7 +42,7 @@ resource "aws_glue_connection" "network" {
   physical_connection_requirements {
     availability_zone      = var.availability_zone
     subnet_id              = var.subnet_id
-    security_group_id_list = [aws_security_group.glue.id]
+    security_group_id_list = [var.security_group_id]
   }
 }
 

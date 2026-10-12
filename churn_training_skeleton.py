@@ -16,13 +16,17 @@ URIs. Install `mlflow` alone and you get a connection error that never mentions
 credentials. See track_run() for the cost warning about the OTHER MLflow
 product -- read it before you create anything.
 
-Usage (local testing):
+Usage (trains on your machine; data comes from the Feature Store via Athena):
+    BUCKET=$(terraform -chdir=infrastructure/environments/dev output -raw s3_bucket_name)
     python churn_training_skeleton.py \
         --feature-group-name northstar-dev-customer-features \
-        --artifacts-bucket northstar-dev-data-<account> \
-        --max-depth 6 --eta 0.1 --num-round 200 \
+        --artifacts-bucket "$BUCKET" \
+        --max-depth 6 --eta 0.2 --num-round 200 \
         --mlflow-arn arn:aws:sagemaker:us-east-1:<account>:mlflow-app/app-XXXX \
-        --run-name xgb-depth6-eta0.1
+        --run-name xgb-depth6-eta0.2 [--register]
+
+Development without AWS: tests/run_training_local.py runs this script on a
+local feature CSV by substituting the data loader from outside the script.
 
 Usage (SageMaker training job — parameters passed via hyperparameter dict):
     Configured via the SageMaker Python SDK Estimator.
@@ -75,8 +79,12 @@ def parse_args():
                         help="Your Lab 1 data bucket, northstar-dev-data-<account>. "
                              "Athena results and model artifacts go under its artifacts/ "
                              "prefix, the only prefix your MLEngineer role can write")
-    parser.add_argument("--local-data-path", type=str, default=None,
-                        help="Path to local feature CSV for development testing (bypasses Feature Store)")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Seed for XGBoost (both models). The train/test split "
+                             "uses its own fixed random_state=42 so every run is scored "
+                             "on the same 3,000 test customers.")
+    parser.add_argument("--early-stopping-rounds", type=int, default=20,
+                        help="Stop when validation AUC has not improved for this many rounds")
 
     # XGBoost hyperparameters
     parser.add_argument("--max-depth", type=int, default=6)
@@ -326,19 +334,9 @@ def load_features_from_feature_store(feature_group_name: str,
     return df
 
 
-def load_features_local(path: str) -> pd.DataFrame:
-    """Load features from a local CSV file (development mode)."""
-    print(f"Loading features from local file: {path}")
-    df = pd.read_csv(path)
-    missing = [c for c in FEATURE_COLUMNS + [LABEL_COLUMN] if c not in df.columns]
-    if missing:
-        raise ValueError(f"Local data missing required columns: {missing}")
-    # Not fatal - the model trains fine without it - but Task 1's slice
-    # evaluation cannot be done at all, so fail the task rather than the run.
-    if SLICE_COLUMN not in df.columns:
-        print(f"WARNING: '{SLICE_COLUMN}' not in local data — Task 1 slice "
-              f"evaluation will not be possible with this file")
-    return df
+# Training data comes only from the Feature Store offline store. There is no
+# local-file loader here on purpose; tests/run_training_local.py substitutes one
+# from outside for development.
 
 
 # ── Feature Preprocessing ──────────────────────────────────────────────────────
@@ -412,7 +410,7 @@ def train_model(X_train: np.ndarray,
         "subsample": args.subsample,
         "colsample_bytree": args.colsample_bytree,
         "scale_pos_weight": spw,
-        "seed": 42,
+        "seed": args.seed,
         "verbosity": 1,
     }
 
@@ -423,7 +421,7 @@ def train_model(X_train: np.ndarray,
         dtrain=dtrain,
         num_boost_round=args.num_round,
         evals=[(dtrain, "train"), (dval, "validation")],
-        early_stopping_rounds=20,
+        early_stopping_rounds=args.early_stopping_rounds,
         verbose_eval=25,
     )
 
@@ -452,10 +450,17 @@ EVAL_THRESHOLDS = {
 BOOTSTRAP_N = 2000
 BOOTSTRAP_SEED = 42
 
+# The recency-only baseline is a fixed reference, not something to tune: its
+# settings are held constant so every run is compared against the same rule.
+BASELINE_PARAMS = {"objective": "binary:logistic", "eval_metric": "auc",
+                   "max_depth": 4, "eta": 0.1, "subsample": 0.9, "colsample_bytree": 0.9}
+BASELINE_NUM_ROUND = 200
+
 
 def train_recency_baseline(X_train: np.ndarray,
                            y_train: np.ndarray,
-                           X_val: np.ndarray) -> np.ndarray:
+                           X_val: np.ndarray,
+                           seed: int) -> np.ndarray:
     """Train the recency-only baseline and score the validation split.
 
     The baseline is a model over `days_since_last_purchase` ALONE, trained on
@@ -472,12 +477,8 @@ def train_recency_baseline(X_train: np.ndarray,
     dtr = xgb.DMatrix(X_train[:, [i]], label=y_train, feature_names=[BASELINE_FEATURE])
     dva = xgb.DMatrix(X_val[:, [i]], feature_names=[BASELINE_FEATURE])
     spw = float((y_train == 0).sum() / max((y_train == 1).sum(), 1))
-    params = {
-        "objective": "binary:logistic", "eval_metric": "auc",
-        "max_depth": 4, "eta": 0.1, "subsample": 0.9,
-        "colsample_bytree": 0.9, "scale_pos_weight": spw, "seed": 42,
-    }
-    return xgb.train(params, dtr, num_boost_round=200).predict(dva)
+    params = {**BASELINE_PARAMS, "scale_pos_weight": spw, "seed": seed}
+    return xgb.train(params, dtr, num_boost_round=BASELINE_NUM_ROUND).predict(dva)
 
 
 def bootstrap_lift_ci(y_true: np.ndarray,
@@ -750,6 +751,8 @@ def track_run(args, metrics: dict, scale_pos_weight: float,
             "subsample": args.subsample,
             "colsample_bytree": args.colsample_bytree,
             "scale_pos_weight": round(scale_pos_weight, 4),
+            "seed": args.seed,
+            "early_stopping_rounds": args.early_stopping_rounds,
             "include_churn_risk_score": args.include_churn_risk_score,
             "n_features": len(FEATURE_COLUMNS),
             "xgboost_version": xgb.__version__,
@@ -882,19 +885,15 @@ def main():
         # Must happen before loading so the query selects it too.
         FEATURE_COLUMNS.append(BASELINE_COLUMN)
 
-    # 1. Load features
-    if args.local_data_path:
-        df = load_features_local(args.local_data_path)
-        data_source = f"local:{os.path.basename(args.local_data_path)}"
-    else:
-        df = load_features_from_feature_store(
-            args.feature_group_name,
-            args.training_start_date,
-            args.training_end_date,
-            args.artifacts_bucket,
-            args.region,
-        )
-        data_source = f"feature-store:{args.feature_group_name}"
+    # 1. Load features from the Feature Store offline store (Athena)
+    df = load_features_from_feature_store(
+        args.feature_group_name,
+        args.training_start_date,
+        args.training_end_date,
+        args.artifacts_bucket,
+        args.region,
+    )
+    data_source = f"feature-store:{args.feature_group_name}"
 
     # 2. Preprocess
     df = df.dropna(subset=[LABEL_COLUMN])
@@ -912,7 +911,7 @@ def main():
     model = train_model(X_train, y_train, X_val, y_val, args)
 
     # 5. Evaluate: gates, slices, confusion matrix, feature importance
-    baseline_proba = train_recency_baseline(X_train, y_train, X_val)
+    baseline_proba = train_recency_baseline(X_train, y_train, X_val, args.seed)
     metrics, y_pred_proba = evaluate_model(model, X_val, y_val, baseline_proba)
     slices = evaluate_slices(y_val, y_pred_proba, tier_val, metrics["top10_threshold"])
     diagnostics = save_diagnostics(model, y_val, y_pred_proba,

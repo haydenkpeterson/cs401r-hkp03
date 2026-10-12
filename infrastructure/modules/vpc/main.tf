@@ -130,7 +130,7 @@ resource "aws_route_table_association" "private" {
 # and reach S3; from the private subnet that egress leaves via the NAT Gateway.
 resource "aws_security_group" "sagemaker" {
   name        = "${local.name_prefix}-sagemaker-sg"
-  description = "SageMaker Studio: intra-VPC inbound only, unrestricted egress"
+  description = "SageMaker Studio and Glue workers: intra-VPC and self inbound, unrestricted egress"
   vpc_id      = aws_vpc.this.id
 
   ingress {
@@ -139,6 +139,19 @@ resource "aws_security_group" "sagemaker" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Glue refuses to start a job in the VPC unless an attached security group
+  # allows all inbound traffic from itself (Spark workers talk on arbitrary
+  # ports). The VPC-CIDR rule above is equivalent in effect but does not pass
+  # Glue's check; the source has to be the group itself. This group is attached
+  # to the Glue NETWORK connection as well as the SageMaker Domain.
+  ingress {
+    description = "All traffic from members of this group - required by Glue"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    self        = true
   }
 
   egress {

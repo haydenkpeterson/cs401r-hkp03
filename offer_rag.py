@@ -230,7 +230,9 @@ says so. Mention the customer's category in a separate phrase.
 - Write exactly 3 sentences, in this order: (1) present this as a retention offer and state \
 how long a retention offer is valid, in the policy's own words (for example "from issue", \
 not "from today"); (2) the incentive: the customer's tier benefits from the context, in one \
-sentence; (3) recommend the profile's recommended category.
+sentence that begins "As a <tier> member, you currently receive"; (3) a call to action that \
+recommends the profile's recommended category by name and asks the customer to use the \
+offer before it expires, in store or online as the policy allows.
 - No greetings or pleasantries ("we'd love to see you back", "we value your loyalty"): they \
 are not facts.
 - Benefits tables have one column per tier: read the value from the customer's tier column \
@@ -277,20 +279,38 @@ any clause the context does not state outright, including: generalizations ("nev
 category, assumptions about the customer (their points balance, what they want), \
 greetings and pleasantries, time words the context does not use (such as "from today"), and \
 benefits from a tier other than the customer's. Keep the sentence presenting the retention \
-offer and its validity period if the context states it, keep the recommendation of the \
-customer's top category by name (the customer profile states it), keep at most 3 sentences, \
-and keep a call to action only if it rests on a stated fact. Return only the revised text."""
+offer and its validity period if the context states it, keep the "As a <tier> member, you \
+currently receive" phrasing, keep the call to action that recommends the customer's top \
+category by name (the customer profile states it) and asks them to use the offer before it \
+expires, and keep at most 3 sentences. Return only the revised text."""
 
 
-def offer_label(question: str, categories: list[str]) -> str:
-    """Line 1 of every offer, built from the request rather than by the model.
+# The eight product categories (Lab 2). Anything else in top_categories is
+# untrusted text, not a category, and never reaches the prompt or the offer.
+KNOWN_CATEGORIES = {"Apparel", "Beauty", "Electronics", "Footwear",
+                    "Grocery", "Home", "Outdoor", "Toys"}
+REFUSAL = "I can only help with retention offers. Please contact support for other requests."
+
+
+def clean_categories(c: dict) -> list[str]:
+    return [cat for cat in c.get("top_categories", []) if cat in KNOWN_CATEGORIES]
+
+
+def offer_label(question: str, tier: str, categories: list[str]) -> str:
+    """Line 1 of every offer, built in code rather than by the model.
 
     It restates who the offer is for in the request's own words, e.g.
     "Generate a retention offer for this Silver member whose ..." becomes
     "Retention offer for this Silver member whose ...". Left to the model the
     label varied run to run, and it is what ties the answer back to the request.
+
+    The request is untrusted input, so its wording is used only when the first
+    sentence has the expected "Generate ... retention offer for ..." shape and is
+    short; anything else (an injected instruction, say) falls back to the tier.
     """
-    who = re.sub(r"^.*?retention offer for\s+", "", question.strip(), flags=re.I).rstrip(".")
+    first = re.split(r"(?<=[.!?])\s+", question.strip())[0]
+    m = re.match(r"^\s*generate\b.*?\bretention offer for\s+(.+?)\.?$", first, re.I)
+    who = m.group(1) if m and len(m.group(1).split()) <= 25 else f"this {tier} member"
     suffix = f" (top categories: {', '.join(categories)})" if categories else ""
     return f"Retention offer for {who}{suffix}:"
 
@@ -314,16 +334,19 @@ def recommended_categories(c: dict) -> str:
     """The product category the offer recommends: the customer's top one or two.
     There is no product catalog, so the recommendation is a category the
     customer already buys, never a product."""
-    return " and ".join(c.get("top_categories", [])[:2]) or "unknown"
+    return " and ".join(clean_categories(c)[:2]) or "unknown"
 
 
-def describe_customer(c: dict) -> str:
+def describe_customer(c: dict, interpret: bool = True) -> str:
     """Template 2, with the raw numbers interpreted.
 
     The starter template passed every field as a bare number. The model then
     has to infer that diversity 0.125 means a one-category shopper, or that an
     online ratio of 0.2 makes shipping incentives nearly irrelevant. Stating
     the interpretation removes that guesswork.
+
+    interpret=False reproduces the template's bare numbers (diversity, channel,
+    no tier caution) so the choice can be measured with the harness.
     """
     n_categories = round(c.get("category_diversity_score", 0) * 8)
     ratio = c.get("online_to_store_ratio", 0.5)
@@ -337,14 +360,17 @@ def describe_customer(c: dict) -> str:
         f"- Lifetime value: ${c.get('total_lifetime_value', 0):,.2f}; "
         f"average order ${c.get('avg_order_value', 0):,.2f}",
         f"- Buys in {n_categories} of 8 categories"
-        + (" (a narrow shopper; cross-category discovery is an option)" if n_categories <= 2 else ""),
-        f"- Channel: {channel} (online ratio {ratio:.2f})",
-        f"- Top categories: {', '.join(c.get('top_categories', [])) or 'unknown'}",
+        + (" (a narrow shopper; cross-category discovery is an option)" if n_categories <= 2 else "")
+        if interpret else
+        f"- Category diversity score: {c.get('category_diversity_score', 0):.2f}",
+        f"- Channel: {channel} (online ratio {ratio:.2f})" if interpret else
+        f"- Online-to-store ratio: {ratio:.2f}",
+        f"- Top categories: {', '.join(clean_categories(c)) or 'unknown'}",
         f"- Recommended category for this offer: {recommended_categories(c)} "
         f"(the offer recommends a category the customer already buys)",
     ]
     ltv = c.get("total_lifetime_value", 0)
-    for tier, threshold in TIER_THRESHOLDS.items():
+    for tier, threshold in (TIER_THRESHOLDS.items() if interpret else []):
         if abs(ltv - threshold) <= NEAR_THRESHOLD_FRACTION * threshold:
             lines.append(
                 f"- Tier caution: lifetime value is within 10% of the {tier} threshold "
@@ -361,6 +387,7 @@ class OfferRAG:
     k: int = 5
     temperature: float = 0.0
     verify: bool = True
+    interpret_profile: bool = True
     region: str = "us-east-1"
     usage: dict = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0, "calls": 0})
 
@@ -374,12 +401,13 @@ class OfferRAG:
         retrieved = retrieve(self.index, customer, self.strategy, self.k)
         policy = [c.render() for c in retrieved]
         profile = ("[Customer profile] At-risk customer selected for a retention offer.\n"
-                   f"{describe_customer(customer)}")
+                   f"{describe_customer(customer, self.interpret_profile)}")
         system = SYSTEM_PROMPT.format(
             context="\n\n".join(policy),
             approach=TIER_APPROACH.get(customer["loyalty_tier"], ""),
         )
-        user = f"{question}\n\n## Customer profile\n{describe_customer(customer)}"
+        user = (f"{question}\n\n## Customer profile\n"
+                f"{describe_customer(customer, self.interpret_profile)}")
         # The offer is grounded in BOTH the profile and the policy, so both are
         # returned as contexts. Returning only the policy chunks makes RAGAS
         # score every profile-based statement ("you shop in store", "you buy
@@ -391,13 +419,19 @@ class OfferRAG:
         first, _, rest = draft.partition("\n")
         # The model writes its own label line; it is replaced by offer_label().
         body = rest if first.lower().startswith("retention offer") else draft
-        if self.verify:
-            # Second pass: strip any clause the context does not state outright.
-            body = self._converse(VERIFY_PROMPT.format(context="\n\n".join(contexts),
-                                                       draft=body.strip()))
-        categories = customer.get("top_categories", [])
-        body = enforce_offer_shape(body.strip(), categories, recommended_categories(customer))
-        answer = f"{offer_label(question, categories)}\n{body}"
+        if REFUSAL.lower() in draft.lower():
+            # Out-of-scope request: return the guardrail reply alone. Checked on
+            # the draft, before verification: the verifier has rewritten a
+            # refusal into a confused non-offer before.
+            answer = REFUSAL
+        else:
+            if self.verify:
+                # Second pass: strip any clause the context does not state outright.
+                body = self._converse(VERIFY_PROMPT.format(context="\n\n".join(contexts),
+                                                           draft=body.strip()))
+            categories = clean_categories(customer)
+            body = enforce_offer_shape(body.strip(), categories, recommended_categories(customer))
+            answer = f"{offer_label(question, customer['loyalty_tier'], categories)}\n{body}"
         return {
             "answer": answer,
             "draft": draft,

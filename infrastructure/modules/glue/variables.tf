@@ -28,8 +28,8 @@ variable "role_arn" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "VPC the Glue security group is created in"
+variable "security_group_id" {
+  description = "Security group for the Glue connection (northstar-dev-sagemaker-sg, which has the self-referencing rule Glue requires)"
   type        = string
 }
 
@@ -73,16 +73,10 @@ variable "feature_engineer_job_suffix" {
   default     = "feature-engineer"
 }
 
-variable "security_group_suffix" {
-  description = "Glue workers security group name suffix, appended to project-environment"
-  type        = string
-  default     = "glue-sg"
-}
-
 variable "connection_suffix" {
   description = "Glue NETWORK connection name suffix, appended to project-environment"
   type        = string
-  default     = "glue-network"
+  default     = "vpc-connection"
 }
 
 variable "raw_table_name" {

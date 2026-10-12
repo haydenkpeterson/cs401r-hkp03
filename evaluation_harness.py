@@ -682,6 +682,9 @@ def main():
                         help="offer_rag.py retrieval strategy: Template 4 options A/B/C, or a "
                              "combination such as AB or ABD (D = offer-limits query)")
     parser.add_argument("--k", type=int, default=5, help="chunks retrieved per query")
+    parser.add_argument("--raw-profile", action="store_true",
+                        help="pass the customer profile as bare numbers (Template 2 as "
+                             "shipped) instead of interpreted signals")
 
     # Track C args
     parser.add_argument("--agent-id", default=None)
@@ -703,7 +706,8 @@ def main():
         # The RAG system lives in offer_rag.py. Its generate() takes
         # (customer_context, question) and returns {"answer", "contexts", ...}.
         from offer_rag import OfferRAG
-        rag = OfferRAG(strategy=args.retrieval_strategy, k=args.k, region=args.region)
+        rag = OfferRAG(strategy=args.retrieval_strategy, k=args.k, region=args.region,
+                       interpret_profile=not args.raw_profile)
         print(f"Retrieval strategy {args.retrieval_strategy}, k={args.k}, "
               f"{len(rag.chunks)} policy chunks indexed")
 
@@ -714,7 +718,8 @@ def main():
         print(f"Generation cost: {rag.usage['calls']} calls, ~${rag.cost_usd():.4f} "
               f"(judge calls are billed separately)")
         output_path = os.path.join(
-            args.output_dir, f"rag_eval_{args.retrieval_strategy}_k{args.k}_{timestamp}.csv")
+            args.output_dir, f"rag_eval_{args.retrieval_strategy}_k{args.k}"
+                             f"{'_raw' if args.raw_profile else ''}_{timestamp}.csv")
         results.to_csv(output_path, index=False)
         print(f"Results saved to {output_path}")
 

@@ -127,15 +127,14 @@ Silver ($500 - $1,999.99):
 - Appropriate incentive: modest discount, bonus points, or early access
 - Near-threshold framing works well here - Gold begins at $2,000
 
-Gold ($2,000 - $9,999.99):
+Gold ($2,000 - $4,999.99):
 - Entitled to: 1.5x points, free standard shipping at any amount, free return
-  shipping, 24-hour early access, 2 free gear repairs per year, free expedited
-  shipping on orders over $200
+  shipping, 24-hour early access, 2 free gear repairs per year
 - NOT entitled to: the 60-day return window (that is Platinum only)
 - Appropriate incentive: bonus points, early access, or a moderate discount
 - Acknowledge Gold status explicitly
 
-Platinum ($10,000+):
+Platinum ($5,000+):
 - Entitled to: 2x points, 60-day return window, free return shipping, 48-hour
   early access, unlimited gear repair, dedicated support line, $100 annual gear credit
 - Appropriate incentive: recognition and exclusivity over discounting
@@ -148,6 +147,17 @@ Applies to every tier:
 - Final sale merchandise is never returnable. Do not imply otherwise.
 - Mexico orders are excluded from all free shipping thresholds.
 ```
+
+> **Corrected (Lab 3).** The three planted errors have been fixed in the block above:
+>
+> 1. Gold's upper bound read **$9,999.99**; POL-LOY-011 section 2 says Gold is $2,000 - **$4,999.99**.
+> 2. Platinum's threshold read **$10,000+**; POL-LOY-011 section 2 says **$5,000 and above**.
+> 3. Gold listed **free expedited shipping on orders over $200**. No tier has it: POL-SHP-007
+>    section 2 says expedited and overnight are charged at full rate for all tiers, and KB-FAQ-022
+>    repeats it. The line was removed.
+>
+> `offer_rag.py` does not inject this block at all: every benefit fact in an offer comes from the
+> retrieved policy text, so a wrong line here cannot reach a customer.
 
 > **Three deliberate errors are planted in the block above.** They are the kind a marketing
 > team introduces when it writes copy from memory instead of from the policy: two wrong

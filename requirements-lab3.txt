@@ -15,3 +15,6 @@ langchain-community<0.4
 langchain-aws
 faiss-cpu
 matplotlib
+nbformat
+nbclient
+ipykernel
