@@ -1,0 +1,61 @@
+{
+  "ModelPackageGroupName": "northstar-churn-models",
+  "Versions": [
+    {
+      "ModelPackageArn": "arn:aws:sagemaker:us-east-1:319165777512:model-package/northstar-churn-models/2",
+      "ModelPackageVersion": 2,
+      "ModelApprovalStatus": "PendingManualApproval",
+      "CreationTime": "2026-10-12 14:10:19.194000-06:00",
+      "ModelPackageDescription": "XGBoost churn model, 11 features. AUC 0.7840 vs recency-only 0.7223 (lift 95% CI [0.0416, 0.0795]); precision@10% 0.7267, recall@10% 0.3303.",
+      "CustomerMetadataProperties": {
+        "auc_roc": "0.784",
+        "auc_vs_baseline": "0.0617",
+        "baseline_auc": "0.7223",
+        "best_iteration": "153",
+        "data_source": "feature-store:northstar-dev-customer-features",
+        "eta": "0.05",
+        "gates_passed": "1",
+        "lift_ci_high": "0.0795",
+        "lift_ci_low": "0.0416",
+        "max_depth": "3",
+        "mlflow_run_id": "04158a67ddb04032af0de9ae826c9161",
+        "n_val_samples": "3000",
+        "num_round": "600",
+        "positive_rate_val": "0.22",
+        "precision_top10": "0.7267",
+        "recall_top10": "0.3303",
+        "top10_threshold": "0.650636",
+        "weakest_tier": "Silver",
+        "xgboost_version": "3.2.0"
+      }
+    },
+    {
+      "ModelPackageArn": "arn:aws:sagemaker:us-east-1:319165777512:model-package/northstar-churn-models/1",
+      "ModelPackageVersion": 1,
+      "ModelApprovalStatus": "PendingManualApproval",
+      "CreationTime": "2026-10-12 12:16:28.464000-06:00",
+      "ModelPackageDescription": "XGBoost churn model, 11 features. AUC 0.7840 vs recency-only 0.7223 (lift 95% CI [0.0416, 0.0795]); precision@10% 0.7267, recall@10% 0.3303.",
+      "CustomerMetadataProperties": {
+        "auc_roc": "0.784",
+        "auc_vs_baseline": "0.0617",
+        "baseline_auc": "0.7223",
+        "best_iteration": "153",
+        "data_source": "feature-store:northstar-dev-customer-features",
+        "eta": "0.05",
+        "gates_passed": "1",
+        "lift_ci_high": "0.0795",
+        "lift_ci_low": "0.0416",
+        "max_depth": "3",
+        "mlflow_run_id": "c7d17de7ea784a91aaabf3512b8aa58b",
+        "n_val_samples": "3000",
+        "num_round": "600",
+        "positive_rate_val": "0.22",
+        "precision_top10": "0.7267",
+        "recall_top10": "0.3303",
+        "top10_threshold": "0.650636",
+        "weakest_tier": "Silver",
+        "xgboost_version": "3.2.0"
+      }
+    }
+  ]
+}

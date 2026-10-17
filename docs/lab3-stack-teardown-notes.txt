@@ -1,0 +1,32 @@
+Lab 3 stack teardown notes - 2026-10-12T20:16:38Z
+
+After the final evidence run, the Lab 2 stack was torn down with scripts/teardown-lab2.sh
+(destroy log: docs/lab3-stack-destroy-output.txt). Its final check:
+
+[7/7] Verifying teardown
+      NAT gateways           OK
+      Elastic IPs            OK
+      SageMaker domains      OK
+      Feature groups         OK
+      EFS filesystems        OK
+      Glue jobs              OK
+      NorthStar VPCs         OK
+      Lineage contexts       STILL PRESENT: 4
+      Lineage artifacts      STILL PRESENT: 5
+      Glue databases         OK
+
+==> WARNING: resources above are still present and may be billing.
+
+The lineage entries it flags are not billable. The Feature Store's lineage records (left behind
+because the script's cleanup reads AWS CLI text output, which ends lines with CR on Windows)
+were then removed by hand. What remains belongs to the Model Registry entry, which Lab 3 keeps
+on purpose (teardown-lab3.sh: 'Model Registry entries cost nothing - kept'):
+
+$ aws sagemaker list-contexts / list-artifacts
+ModelGroup	northstar-churn-models-1791828988-aws-model-package-group
+ModelData	s3://northstar-dev-data-319165777512/artifacts/models/churn/20261012T201016Z/model.tar.gz
+Model	arn:aws:sagemaker:us-east-1:319165777512:model-package/northstar-churn-models/2
+Image	683313688378.dkr.ecr.us-east-1.amazonaws.com/sagemaker-xgboost:1.7-1
+Model	arn:aws:sagemaker:us-east-1:319165777512:model-package/northstar-churn-models/1
+
+Billable resources: none. NAT gateways: 0, SageMaker endpoints: 0, MLflow tracking servers: 0.

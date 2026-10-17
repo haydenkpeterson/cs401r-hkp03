@@ -1,0 +1,48 @@
+
+######## CASE 1: Generate a personalized retention offer for this at-risk Gold member who shops m
+FAITHFULNESS 7/10 supported. Rejected:
+  - The at-risk Gold member can shop Outdoor and Footwear categories before the offer expires.
+      judge: The context does not provide information about whether the customer can shop these categories or any restrictions on shopping. The offer is for retention purposes but does not explicitly state shopping restrictions or pe
+  - The at-risk Gold member can shop at northstar.com.
+      judge: The context does not mention a website URL or confirm the existence of northstar.com. While the customer shops mostly online, the specific website is not identified in the provided context.
+  - The at-risk Gold member can shop at any of the 400 stores.
+      judge: The context mentions '400 locations' in KB-FAQ-022 regarding returns, but does not provide information about whether the customer can shop at these stores or any restrictions on store access.
+RELEVANCY inferred questions (cosine to the real question):
+  0.87  What retention offer is available for this at-risk Gold member who shops mostly online for outdoor gear and footwear?
+  0.87  What retention offer is available for this at-risk Gold member who shops mostly online for outdoor gear and footwear?
+  0.87  What retention offer is available for this at-risk Gold member who shops mostly online for outdoor gear and footwear?
+CONTEXT RECALL 4/4 reference statements attributed. Not attributed:
+
+######## CASE 2: Generate a retention offer for this Bronze member who shops in store, buys only 
+FAITHFULNESS 9/10 supported. Rejected:
+  - The Bronze member should redeem the offer before the offer expires.
+      judge: This is a normative statement about what the customer should do. While the context establishes that the offer expires after 45 days, it does not explicitly state that the customer should redeem it before expiration. This
+RELEVANCY inferred questions (cosine to the real question):
+  0.81  What retention offer should be provided to a Bronze member who shops in-store, buys only apparel, and hasn't purchased in over two months?
+  0.81  What retention offer should be provided to a Bronze member who shops in-store, buys only apparel, and hasn't purchased in over two months?
+  0.75  What retention offer is being provided to this Bronze member who shops in store and buys only apparel?
+CONTEXT RECALL 5/5 reference statements attributed. Not attributed:
+
+######## CASE 3: Generate a retention offer for this high-value Platinum member with broad catego
+FAITHFULNESS 13/14 supported. Rejected:
+  - The Platinum member should shop Outdoor and Electronics before the offer expires.
+      judge: While the context states the recommended category for the offer is 'Outdoor and Electronics' and retention offers are valid for 45 days, the context does not explicitly state that the customer should shop these categorie
+RELEVANCY inferred questions (cosine to the real question):
+  0.73  What retention offer is being provided to this high-value Platinum member?
+  0.69  What retention offer is being provided to this high-value Platinum member, and what benefits and incentives are included?
+  0.73  What retention offer is being provided to this high-value Platinum member?
+CONTEXT RECALL 1/3 reference statements attributed. Not attributed:
+  - Should emphasize recognition and exclusivity over a deep discount - a heavy percentage discount destroys margin on a $447 average order.
+      judge: This is a strategic recommendation not found in the context. The context provides customer profile data and policy information but does not contain guidance on retention offer strategy or margin considerations.
+  - Referencing the unused gear credit is the strongest available lever and costs nothing incremental.
+      judge: While the context confirms the $100 annual gear credit exists as a Platinum benefit, the assessment that it is 'unused' and represents the 'strongest available lever' is a strategic interpretation not stated in the provi
+
+######## CASE 4: Generate a retention offer for this Silver member whose lifetime value is just u
+FAITHFULNESS 7/8 supported. Rejected:
+  - The Silver member should shop Home and Beauty before the offer expires.
+      judge: While the context recommends Home and Beauty as the offer category and the offer is valid for 45 days, the statement 'should shop' is a recommendation or suggestion not explicitly stated in the context. The context only 
+RELEVANCY inferred questions (cosine to the real question):
+  0.66  What retention offer is being provided to this Silver member, and what are the key benefits and conditions?
+  0.64  What retention offer is available for this Silver member, and what are the key benefits and conditions?
+  0.64  What retention offer is available for this Silver member, and what are the key benefits and conditions?
+CONTEXT RECALL 4/4 reference statements attributed. Not attributed:

@@ -46,3 +46,43 @@ bash scripts/verify-lab2.sh
 # 5. Delete everything when finished (the NAT Gateway costs money every hour)
 bash scripts/teardown-lab2.sh
 ```
+
+## Lab 3: Models
+
+| File | What it does |
+|------|--------------|
+| `churn_training_skeleton.py` | Trains the churn model (XGBoost) on Feature Store data pulled with Athena, logs each run to the MLflow App, and registers the final model |
+| `select_high_risk_customers.py` | Scores customers with the trained model and saves the high-risk ones for offers |
+| `offer_rag.py` | Track B: writes retention offers with RAG over `northstar-policy-docs/` (Titan embeddings, FAISS, Claude Haiku) |
+| `evaluation_harness.py` | Scores the offers with RAGAS |
+| `notebooks/lab3-demo.ipynb` | Demo: offers for the model's high-risk customers |
+
+### How to run it
+
+```bash
+pip install -r requirements-lab3.txt
+BUCKET=$(terraform -chdir=infrastructure/environments/dev output -raw s3_bucket_name)
+
+# 1. Train (the Lab 2 stack must be up and the offline store filled)
+python churn_training_skeleton.py --artifacts-bucket "$BUCKET" \
+    --max-depth 3 --eta 0.05 --num-round 600 --run-name my-run \
+    --mlflow-arn "$MLFLOW_APP_ARN" --output-data-dir docs/lab3-evidence --register
+
+# 2. Pick high-risk customers for offers
+python select_high_risk_customers.py --artifacts-bucket "$BUCKET" --model-dir ./model
+
+# 3. Evaluate the offer system
+python evaluation_harness.py --track B
+python tests/offer_guardrail_checks.py
+
+# 4. Export evidence, then clean up
+bash scripts/collect-lab3-evidence.sh --track B
+bash scripts/teardown-lab3.sh
+```
+
+### Where things land
+
+- **Model:** `./model/` locally, `s3://<bucket>/artifacts/models/churn/` in S3, and the Model Registry group `northstar-churn-models` (status PendingManualApproval)
+- **Experiment runs:** MLflow App `northstar-mlflow`, experiment `northstar-churn`
+- **Athena results:** `s3://<bucket>/artifacts/athena-results/`
+- **Evidence for grading:** `docs/lab3-evidence/`, `docs/lab3-evaluation-report.md`, `docs/lab3-model-design.md`

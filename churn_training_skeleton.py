@@ -321,6 +321,9 @@ def load_features_from_feature_store(feature_group_name: str,
     if status["State"] != "SUCCEEDED":
         raise RuntimeError(f"Athena query {qid} {status['State']}: "
                            f"{status.get('StateChangeReason', '')}")
+    # scripts/collect-lab3-evidence.sh reads this line from train-final.log and
+    # looks the query up in Athena: it is the evidence of where the data came from.
+    print(f"Athena QueryExecutionId: {qid}")
 
     # Athena writes the full result set as CSV to the output location.
     obj = boto3.client("s3", region_name=region).get_object(
@@ -610,7 +613,8 @@ MIN_SLICE_POSITIVES = 30
 def evaluate_slices(y_val: np.ndarray,
                     y_pred_proba: np.ndarray,
                     slice_column: pd.Series,
-                    top10_threshold: float) -> dict:
+                    top10_threshold: float,
+                    out_dir: str) -> dict:
     """
     AUC, recall@10% and n per slice (loyalty tier).
 
@@ -657,6 +661,10 @@ def evaluate_slices(y_val: np.ndarray,
         print(f"  {tier:10s} {r['n']:5d} {r['positives']:8d} {r['auc']:7.3f} "
               f"{r['recall_top10']:10.3f} {r['contacted']:9d}  {'; '.join(notes)}")
 
+    pd.DataFrame([{"tier": t, **r, "weakest_auc": t == weakest}
+                  for t, r in slice_results.items()]).to_csv(
+        os.path.join(out_dir, "slice-evaluation.csv"), index=False, float_format="%.4f")
+
     return {"aggregate_recall_top10": float(aggregate_recall),
             "weakest_tier": weakest, "tiers": slice_results}
 
@@ -687,10 +695,23 @@ def save_diagnostics(model: xgb.Booster, y_val: np.ndarray, y_pred_proba: np.nda
         ax.set_xlabel("Average gain per split")
         ax.set_title("Churn model feature importance (gain)")
         fig.tight_layout()
-        fig.savefig(os.path.join(out_dir, "feature_importance.png"), dpi=130)
+        fig.savefig(os.path.join(out_dir, "feature-importance.png"), dpi=130)
+        plt.close(fig)
+
+        grid = np.array([[tn, fp], [fn, tp]])
+        fig, ax = plt.subplots(figsize=(4.8, 4))
+        ax.imshow(grid, cmap="Blues")
+        for (i, j), v in np.ndenumerate(grid):
+            ax.text(j, i, f"{v:,}", ha="center", va="center", fontsize=13,
+                    color="white" if v > grid.max() / 2 else "black")
+        ax.set_xticks([0, 1], ["predicted stay", "predicted churn"])
+        ax.set_yticks([0, 1], ["actual stay", "actual churn"])
+        ax.set_title(f"Confusion matrix at top-10% cutoff\n(score >= {top10_threshold:.4f})")
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, "confusion-matrix.png"), dpi=130)
         plt.close(fig)
     except ImportError:
-        print("  (matplotlib not installed; skipping feature importance plot)")
+        print("  (matplotlib not installed; skipping plots)")
 
     with open(os.path.join(out_dir, "diagnostics.json"), "w") as f:
         json.dump({"confusion_matrix": cm, "feature_importance_gain": importance}, f, indent=2)
@@ -764,7 +785,8 @@ def track_run(args, metrics: dict, scale_pos_weight: float,
             mlflow.log_metrics({f"{tier}_auc": r["auc"],
                                 f"{tier}_recall_top10": r["recall_top10"],
                                 f"{tier}_n": r["n"]})
-        for name in ("diagnostics.json", "feature_importance.png", "evaluation_metrics.json"):
+        for name in ("diagnostics.json", "feature-importance.png", "confusion-matrix.png",
+                     "slice-evaluation.csv", "evaluation_metrics.json"):
             path = os.path.join(args.output_data_dir, name)
             if os.path.exists(path):
                 mlflow.log_artifact(path)
@@ -913,7 +935,8 @@ def main():
     # 5. Evaluate: gates, slices, confusion matrix, feature importance
     baseline_proba = train_recency_baseline(X_train, y_train, X_val, args.seed)
     metrics, y_pred_proba = evaluate_model(model, X_val, y_val, baseline_proba)
-    slices = evaluate_slices(y_val, y_pred_proba, tier_val, metrics["top10_threshold"])
+    slices = evaluate_slices(y_val, y_pred_proba, tier_val, metrics["top10_threshold"],
+                             args.output_data_dir)
     diagnostics = save_diagnostics(model, y_val, y_pred_proba,
                                    metrics["top10_threshold"], args.output_data_dir)
     metrics["best_iteration"] = int(model.best_iteration)

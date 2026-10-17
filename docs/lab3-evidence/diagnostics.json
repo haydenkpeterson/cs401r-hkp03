@@ -1,0 +1,22 @@
+{
+  "confusion_matrix": {
+    "threshold": 0.650636,
+    "tn": 2258,
+    "fp": 82,
+    "fn": 442,
+    "tp": 218
+  },
+  "feature_importance_gain": {
+    "days_since_last_purchase": 76.44580078125,
+    "customer_tenure_days": 11.183605194091797,
+    "purchase_frequency_30d": 28.65785026550293,
+    "purchase_frequency_90d": 16.749473571777344,
+    "purchase_frequency_180d": 51.69729995727539,
+    "avg_order_value": 24.300800323486328,
+    "total_spend_90d": 14.969596862792969,
+    "total_lifetime_value": 21.07382583618164,
+    "avg_basket_size_6m": 12.308554649353027,
+    "category_diversity_score": 13.591741561889648,
+    "online_to_store_ratio": 12.751667976379395
+  }
+}

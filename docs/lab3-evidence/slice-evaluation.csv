@@ -1,0 +1,5 @@
+tier,n,positives,auc,recall_top10,contacted,too_small,recall_gap_flag,weakest_auc
+Bronze,1071,361,0.7586,0.4543,211,False,False,False
+Gold,483,52,0.7525,0.1154,7,False,True,False
+Platinum,307,21,0.8775,0.2381,8,True,False,False
+Silver,1139,226,0.7143,0.1903,74,False,True,True

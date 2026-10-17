@@ -1,0 +1,64 @@
+{
+  "auc_roc": 0.784,
+  "precision_top10": 0.7267,
+  "recall_top10": 0.3303,
+  "auc_vs_baseline": 0.0617,
+  "baseline_auc": 0.7223,
+  "lift_ci_low": 0.0416,
+  "lift_ci_high": 0.0795,
+  "positive_rate_val": 0.22,
+  "n_val_samples": 3000,
+  "top10_threshold": 0.650636,
+  "eval_timestamp": "2026-10-12T20:10:03.102560+00:00",
+  "gates_passed": 1,
+  "best_iteration": 153,
+  "slices": {
+    "aggregate_recall_top10": 0.3303030303030303,
+    "weakest_tier": "Silver",
+    "tiers": {
+      "Bronze": {
+        "n": 1071,
+        "positives": 361,
+        "auc": 0.7586360266864344,
+        "recall_top10": 0.45429362880886426,
+        "contacted": 211,
+        "too_small": false,
+        "recall_gap_flag": false
+      },
+      "Gold": {
+        "n": 483,
+        "positives": 52,
+        "auc": 0.7525432803855077,
+        "recall_top10": 0.11538461538461539,
+        "contacted": 7,
+        "too_small": false,
+        "recall_gap_flag": true
+      },
+      "Platinum": {
+        "n": 307,
+        "positives": 21,
+        "auc": 0.8774558774558774,
+        "recall_top10": 0.23809523809523808,
+        "contacted": 8,
+        "too_small": true,
+        "recall_gap_flag": false
+      },
+      "Silver": {
+        "n": 1139,
+        "positives": 226,
+        "auc": 0.7143085616803497,
+        "recall_top10": 0.1902654867256637,
+        "contacted": 74,
+        "too_small": false,
+        "recall_gap_flag": true
+      }
+    }
+  },
+  "confusion_matrix": {
+    "threshold": 0.650636,
+    "tn": 2258,
+    "fp": 82,
+    "fn": 442,
+    "tp": 218
+  }
+}
