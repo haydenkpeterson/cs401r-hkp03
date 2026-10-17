@@ -8,7 +8,7 @@ Full numbers: [evaluation report](lab3-evaluation-report.md) · Track B results:
 
 **Key facts:** 9,999 customers, 11 numeric features, 22% churners. The retention team needs to know why a customer is flagged. Final model: XGBoost, depth 3, AUC 0.784.
 
-> XGBoost is the best option, because it works well at finding patterns in medium sized datasets and allows us to see which features are important in predicting customer churn. Logitstic regression isn't as good at picking up patterns and our dataset is too small to get good accuracy from a neural net.
+> XGBoost is the best option, because it works well at finding patterns in medium sized datasets and allows us to see which features are important in predicting customer churn. Logistic regression isn't as good at picking up patterns and our dataset is too small to get good accuracy from a neural net. I would switch to a neural net if we had millions of customers or raw event data like clickstreams, or to logistic regression if the retention team needed simple weights they could explain and XGBoost stopped beating it.
 
 ## 2. What the features bought
 
@@ -20,13 +20,13 @@ Full numbers: [evaluation report](lab3-evaluation-report.md) · Track B results:
 
 **Key facts:** Recency and purchase frequency carry the most signal. Category diversity, channel mix, basket size and tenure carry the least.
 
-> This lift is large because more customer features features increased the AUC (see CI). The recency and purchase frequency carry the most signal of churn risk. Category diversity, channel mix, basket size, and tenure were less useful because they contributed less to the predictions.
+> This lift is real but moderate: the extra features raised AUC by 0.062, and the 95% CI excludes zero. Adding churn_risk_score made the model worse (0.773), because it only repeats recency. The recency and purchase frequency carry the most signal of churn risk. Category diversity, channel mix, basket size, and tenure were less useful because they contributed less to the predictions.
 
 ## 3. Why RAG instead of fine-tuning
 
 **Key facts:** Offers must follow 4 policy documents that change over time. Every claim has to trace back to a policy. The starter prompt had 3 wrong facts written from memory.
 
-> RAG allows us to tailor our output to the customer and personalize offers using customer information and company policies. Unlike fine-tuning, RAG can use updated policy documents without retraining the model. Our model has to trace back to a specific policy as well and using RAG lets us check what specific policies the model pulled from.
+> RAG allows us to tailor our output to the customer and personalize offers using customer information and company policies. Unlike fine-tuning, RAG can use updated policy documents without retraining the model. Our model has to trace back to a specific policy as well and using RAG lets us check what specific policies the model pulled from. The biggest production risk is that the model still writes claims the policy does not support: our first version invented "500 bonus points" and gave a Bronze customer a Silver benefit, which the verification step and guardrail tests now catch.
 
 **Track B design choices**
 
