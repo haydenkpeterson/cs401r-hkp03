@@ -14,3 +14,10 @@ __pycache__/
 /model/
 /output/
 evaluation_results/
+
+# Lab 4: CI stages these locally; never commit them
+/data/processed/
+/data/features/
+/data/northstar-raw-sample.csv
+reports/
+.pytest_cache/
