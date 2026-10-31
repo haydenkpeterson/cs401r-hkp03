@@ -340,8 +340,3 @@ class TestConsistency:
             f"Only {survival:.1%} of raw rows survived to processed. Expected "
             f"85-100%; the transform should remove only null-key and duplicate rows."
         )
-
-
-def test_deliberate_failure_for_lab4_demo():
-    """Lab 4 Task 2: a deliberately failing assertion, reverted in the next commit."""
-    assert 1 == 2, "Deliberate failure: the pipeline must halt in pre_build, before Register"
