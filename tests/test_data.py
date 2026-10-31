@@ -344,4 +344,4 @@ class TestConsistency:
 
 def test_deliberate_failure_for_lab4_demo():
     """Lab 4 Task 2: a deliberately failing assertion, reverted in the next commit."""
-    assert 1 == 2, "Deliberate failure: the pipeline must halt in pre_build"
+    assert 1 == 2, "Deliberate failure: the pipeline must halt in pre_build, before Register"

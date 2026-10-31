@@ -355,6 +355,17 @@ Resources:
       ArtifactStore:
         Type: S3
         Location: !Ref ArtifactsBucket
+      # Declared explicitly: with DetectChanges alone, pushes to main did not
+      # start a run on this account (triggers read null on the deployed pipeline).
+      PipelineType: V2
+      Triggers:
+        - ProviderType: CodeStarSourceConnection
+          GitConfiguration:
+            SourceActionName: GitHubSource
+            Push:
+              - Branches:
+                  Includes:
+                    - !Ref GitHubBranch
 
       Stages:
 
