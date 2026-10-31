@@ -67,6 +67,7 @@ resource "aws_iam_policy" "ml_engineer" {
           "sagemaker:ListMlflowApps",
           "sagemaker:CreatePresignedMlflowAppUrl",
           "sagemaker:CreateModelPackage",
+          "sagemaker:CreateModelPackageGroup",
           "sagemaker:DescribeModelPackage",
           "sagemaker:DescribeModelPackageGroup",
           "sagemaker:ListModelPackages",
